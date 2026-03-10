@@ -1,0 +1,18 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.listing_list_create, name='listing_list_create'),
+    path('categories/', views.category_list, name='category_list'),
+    path('my/', views.seller_listings, name='seller_listings'),
+    path('my/offers/', views.seller_offers, name='seller_offers'),
+    path('favorites/', views.my_favorites, name='my_favorites'),
+    path('<int:pk>/', views.listing_detail, name='listing_detail'),
+    path('<int:pk>/images/', views.upload_listing_image, name='upload_listing_image'),
+    path('<int:pk>/related/', views.related_listings, name='related_listings'),
+    path('<int:pk>/offers/', views.offer_list_create, name='offer_list_create'),
+    path('<int:pk>/bids/', views.bid_list_create, name='bid_list_create'),
+    path('<int:pk>/view/', views.log_view, name='log_view'),
+    path('<int:pk>/favorite/', views.toggle_favorite, name='toggle_favorite'),
+    path('offers/<int:offer_id>/', views.offer_update, name='offer_update'),
+]
