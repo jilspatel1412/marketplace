@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { listingAPI, bidAPI } from '../api'
+import { useAuth } from '../context/AuthContext'
+import ImageGallery from '../components/ImageGallery'
+import Countdown from '../components/Countdown'
+import OfferForm from '../components/OfferForm'
+import BidForm from '../components/BidForm'
+import ListingCard from '../components/ListingCard'
 
 const REPORT_REASONS = [
   { value: 'fake', label: 'Fake or counterfeit item' },
@@ -60,13 +66,6 @@ function ReportModal({ listingId, onClose }) {
     </div>
   )
 }
-import { useAuth } from '../context/AuthContext'
-import ImageGallery from '../components/ImageGallery'
-import Countdown from '../components/Countdown'
-import OfferForm from '../components/OfferForm'
-import BidForm from '../components/BidForm'
-import ListingCard from '../components/ListingCard'
-
 export default function ListingDetail() {
   const { id } = useParams()
   const { user } = useAuth()

@@ -126,15 +126,23 @@ function MessagePane({ partnerId, partnerUsername }) {
 export default function Inbox() {
   const { partnerId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [threads, setThreads] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeId, setActiveId] = useState(partnerId ? parseInt(partnerId) : null)
   const [activeUsername, setActiveUsername] = useState('')
 
+  // Redirect away if someone tries to open a conversation with themselves
+  useEffect(() => {
+    if (partnerId && user && parseInt(partnerId) === user.id) {
+      navigate('/inbox', { replace: true })
+    }
+  }, [partnerId, user])
+
   useEffect(() => {
     messageAPI.threads().then(r => {
       setThreads(r.data)
-      if (partnerId) {
+      if (partnerId && user && parseInt(partnerId) !== user.id) {
         const t = r.data.find(t => t.partner_id === parseInt(partnerId))
         if (t) setActiveUsername(t.partner_username)
       }

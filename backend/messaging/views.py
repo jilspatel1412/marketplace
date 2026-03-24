@@ -56,6 +56,9 @@ def thread_detail(request, partner_id):
     except User.DoesNotExist:
         return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    if me.id == partner_id:
+        return Response({'error': 'You cannot message yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
     if request.method == 'GET':
         messages = Message.objects.filter(
             Q(sender=me, recipient=partner) | Q(sender=partner, recipient=me)
