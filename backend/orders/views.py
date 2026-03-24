@@ -415,7 +415,7 @@ def create_review(request, order_id):
         comment=comment,
     )
     create_notification(
-        order.seller, 'order_paid',
+        order.seller, 'review_received',
         f'New review from {request.user.username}',
         f'{rating}★ — {comment[:80] if comment else "No comment."}',
         '/seller/orders'
