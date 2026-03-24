@@ -1,6 +1,65 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { listingAPI, bidAPI } from '../api'
+
+const REPORT_REASONS = [
+  { value: 'fake', label: 'Fake or counterfeit item' },
+  { value: 'spam', label: 'Spam or misleading' },
+  { value: 'inappropriate', label: 'Inappropriate content' },
+  { value: 'sold', label: 'Already sold / unavailable' },
+  { value: 'other', label: 'Other' },
+]
+
+function ReportModal({ listingId, onClose }) {
+  const [reason, setReason] = useState('fake')
+  const [detail, setDetail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true); setError('')
+    try {
+      await listingAPI.report(listingId, { reason, detail })
+      setDone(true)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not submit report.')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">Report Listing</div>
+        {done ? (
+          <div>
+            <div className="alert alert-success">Thank you — our team will review this listing.</div>
+            <button className="btn btn-secondary" style={{ width: '100%', marginTop: 12 }} onClick={onClose}>Close</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            {error && <div className="alert alert-error">{error}</div>}
+            <div className="form-group">
+              <label>Reason</label>
+              <select value={reason} onChange={e => setReason(e.target.value)}>
+                {REPORT_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Additional details (optional)</label>
+              <textarea rows={3} value={detail} onChange={e => setDetail(e.target.value)} placeholder="Provide any extra context..." />
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn btn-danger" disabled={loading}>{loading ? 'Submitting...' : 'Submit Report'}</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
 import { useAuth } from '../context/AuthContext'
 import ImageGallery from '../components/ImageGallery'
 import Countdown from '../components/Countdown'
@@ -17,15 +76,32 @@ export default function ListingDetail() {
   const [bids, setBids] = useState([])
   const [loading, setLoading] = useState(true)
   const [auctionEnded, setAuctionEnded] = useState(false)
+  const [isFavorited, setIsFavorited] = useState(false)
+  const [favLoading, setFavLoading] = useState(false)
+  const [showContact, setShowContact] = useState(false)
+  const [contactMsg, setContactMsg] = useState('')
+  const [contactSent, setContactSent] = useState(false)
+  const [contactLoading, setContactLoading] = useState(false)
+  const [contactError, setContactError] = useState('')
+  const [buyLoading, setBuyLoading] = useState(false)
+  const [buyError, setBuyError] = useState('')
+  const [acceptBidLoading, setAcceptBidLoading] = useState(false)
+  const [showReport, setShowReport] = useState(false)
 
-  const fetchListing = () => {
+  const fetchListing = useCallback(() => {
     listingAPI.get(id).then(res => {
       setListing(res.data)
+      setIsFavorited(res.data.is_favorited || false)
       if (res.data.auction_end_time) {
         setAuctionEnded(new Date(res.data.auction_end_time) < new Date())
       }
     }).catch(() => navigate('/listings'))
-  }
+  }, [id, navigate])
+
+  const handleAuctionExpire = useCallback(() => {
+    setAuctionEnded(true)
+    fetchListing()
+  }, [fetchListing])
 
   useEffect(() => {
     setLoading(true)
@@ -35,16 +111,77 @@ export default function ListingDetail() {
       bidAPI.list(id),
     ]).then(([listRes, relRes, bidRes]) => {
       setListing(listRes.data)
+      setIsFavorited(listRes.data.is_favorited || false)
       setRelated(relRes.data)
       setBids(bidRes.data)
       if (listRes.data.auction_end_time) {
         setAuctionEnded(new Date(listRes.data.auction_end_time) < new Date())
       }
     }).catch(() => navigate('/listings')).finally(() => setLoading(false))
-
-    // Log view
-    if (user) listingAPI.logView(id).catch(() => {})
   }, [id])
+
+  const toggleFavorite = async () => {
+    if (!user) { navigate('/login'); return }
+    setFavLoading(true)
+    try {
+      if (isFavorited) {
+        await listingAPI.unfavorite(id)
+        setIsFavorited(false)
+      } else {
+        await listingAPI.favorite(id)
+        setIsFavorited(true)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setFavLoading(false)
+    }
+  }
+
+  const handleContact = async () => {
+    if (!contactMsg.trim()) return
+    setContactError('')
+    setContactLoading(true)
+    try {
+      await listingAPI.contact(id, { message: contactMsg })
+      setContactSent(true)
+      setContactMsg('')
+    } catch (err) {
+      setContactError(err.response?.data?.error || 'Failed to send message.')
+    } finally {
+      setContactLoading(false)
+    }
+  }
+
+  const closeContact = () => {
+    setShowContact(false)
+    setContactSent(false)
+    setContactMsg('')
+    setContactError('')
+  }
+
+  const handleBuyNow = async () => {
+    if (!user) { navigate('/login'); return }
+    setBuyError(''); setBuyLoading(true)
+    try {
+      const res = await listingAPI.buyNow(id)
+      navigate(`/checkout/${res.data.order_id}`)
+    } catch (err) {
+      setBuyError(err.response?.data?.error || 'Could not process purchase.')
+    } finally { setBuyLoading(false) }
+  }
+
+  const handleAcceptBid = async () => {
+    if (!window.confirm('Accept the current highest bid and close the auction?')) return
+    setAcceptBidLoading(true)
+    try {
+      const res = await listingAPI.acceptBid(id)
+      alert(`Bid accepted! Winner: ${res.data.winner} — $${res.data.amount}. Buyer notified.`)
+      fetchListing()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to accept bid.')
+    } finally { setAcceptBidLoading(false) }
+  }
 
   if (loading) return <div className="spinner" />
   if (!listing) return null
@@ -129,7 +266,7 @@ export default function ListingDetail() {
                   ) : (
                     <Countdown
                       endTime={listing.auction_end_time}
-                      onExpire={() => { setAuctionEnded(true); fetchListing() }}
+                      onExpire={handleAuctionExpire}
                     />
                   )}
                 </div>
@@ -138,15 +275,42 @@ export default function ListingDetail() {
               <div style={{ paddingTop: 16, borderTop: '1px solid var(--border)', marginBottom: 16 }}>
                 <div style={{ fontSize: '0.82rem', color: 'var(--text2)', marginBottom: 4 }}>Seller</div>
                 <div style={{ fontWeight: 600 }}>
-                  {listing.seller_info?.username}
+                  <span
+                    style={{ cursor: 'pointer', color: 'var(--accent)' }}
+                    onClick={() => navigate(`/sellers/${listing.seller_info?.username}`)}
+                  >
+                    {listing.seller_info?.username}
+                  </span>
                   {listing.seller_info?.is_verified && <span style={{ marginLeft: 6, color: 'var(--green)', fontSize: '0.75rem' }}>✓ Verified</span>}
                 </div>
+                {listing.seller_info?.avg_rating ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                    <span style={{ color: '#f59e0b', fontSize: '0.9rem' }}>
+                      {'★'.repeat(Math.round(listing.seller_info.avg_rating))}{'☆'.repeat(5 - Math.round(listing.seller_info.avg_rating))}
+                    </span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text3)' }}>
+                      {listing.seller_info.avg_rating} ({listing.seller_info.review_count})
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginTop: 4 }}>No reviews yet</div>
+                )}
               </div>
 
               {/* Seller actions */}
               {isSeller && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => navigate(`/seller/listings/${listing.id}/edit`)}>Edit</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <button className="btn btn-secondary" style={{ width: '100%' }} onClick={() => navigate(`/seller/listings/${listing.id}/edit`)}>Edit Listing</button>
+                  {listing.is_auction && listing.status === 'active' && bids.length > 0 && (
+                    <button
+                      className="btn btn-success"
+                      style={{ width: '100%' }}
+                      disabled={acceptBidLoading}
+                      onClick={handleAcceptBid}
+                    >
+                      {acceptBidLoading ? 'Processing...' : `Accept Current Bid ($${listing.current_bid})`}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -159,20 +323,123 @@ export default function ListingDetail() {
                       listingAPI.get(id).then(res => setListing(res.data))
                     }} />
                   )}
-                  {listing.is_negotiable && !listing.is_auction && (
-                    <OfferForm listing={listing} />
-                  )}
-                  {!listing.is_negotiable && !listing.is_auction && (
-                    <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }}>
-                      Contact Seller
-                    </button>
+                  {!listing.is_auction && (
+                    <>
+                      {buyError && <div className="alert alert-error" style={{ marginBottom: 8 }}>{buyError}</div>}
+                      <button
+                        className="btn btn-primary"
+                        style={{ width: '100%', marginBottom: 8 }}
+                        disabled={buyLoading}
+                        onClick={handleBuyNow}
+                      >
+                        {buyLoading ? 'Processing...' : `Buy Now — $${listing.price}`}
+                      </button>
+                      <OfferForm listing={listing} />
+                    </>
                   )}
                 </>
+              )}
+
+              {/* Message Seller */}
+              {!isSeller && user && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ width: '100%', marginTop: 8 }}
+                  onClick={() => navigate(`/inbox/${listing.seller_info?.id}`)}
+                >
+                  💬 Message Seller
+                </button>
+              )}
+
+              {/* Favourite button */}
+              {!isSeller && (
+                <button
+                  onClick={toggleFavorite}
+                  disabled={favLoading}
+                  style={{
+                    width: '100%', marginTop: 10,
+                    background: isFavorited ? 'rgba(255,80,80,0.1)' : 'var(--bg3)',
+                    border: `1px solid ${isFavorited ? '#ff5050' : 'var(--border)'}`,
+                    color: isFavorited ? '#ff5050' : 'var(--text2)',
+                    borderRadius: 8, padding: '10px 0', cursor: 'pointer',
+                    fontWeight: 600, fontSize: '0.9rem', transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  {isFavorited ? '♥ Saved' : '♡ Save to Favourites'}
+                </button>
+              )}
+
+              {/* Report button */}
+              {!isSeller && user && (
+                <button
+                  onClick={() => setShowReport(true)}
+                  style={{ width: '100%', marginTop: 8, background: 'none', border: 'none', color: 'var(--text3)', fontSize: '0.78rem', cursor: 'pointer', padding: '4px 0' }}
+                >
+                  🚩 Report this listing
+                </button>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {showReport && <ReportModal listingId={listing.id} onClose={() => setShowReport(false)} />}
+
+      {/* Contact Seller Modal */}
+      {showContact && (
+        <div
+          onClick={closeContact}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000, padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card card-body"
+            style={{ width: '100%', maxWidth: 480 }}
+          >
+            <h3 style={{ marginBottom: 4 }}>Contact Seller</h3>
+            <p style={{ color: 'var(--text3)', fontSize: '0.85rem', marginBottom: 20 }}>
+              Send a message to <strong>{listing.seller_info?.username}</strong> about "{listing.title}"
+            </p>
+
+            {contactSent ? (
+              <div>
+                <div className="alert alert-success">Message sent! The seller will reply via email.</div>
+                <button className="btn btn-secondary" style={{ width: '100%', marginTop: 12 }} onClick={closeContact}>Close</button>
+              </div>
+            ) : (
+              <div>
+                {contactError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{contactError}</div>}
+                <div className="form-group">
+                  <label>Your message</label>
+                  <textarea
+                    rows={4}
+                    value={contactMsg}
+                    onChange={e => setContactMsg(e.target.value)}
+                    placeholder="Hi, I'm interested in this item..."
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button
+                    className="btn btn-primary"
+                    style={{ flex: 1 }}
+                    disabled={contactLoading || !contactMsg.trim()}
+                    onClick={handleContact}
+                  >
+                    {contactLoading ? 'Sending...' : 'Send Message'}
+                  </button>
+                  <button className="btn btn-secondary" onClick={closeContact}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

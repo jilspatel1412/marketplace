@@ -9,12 +9,12 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 const CARD_STYLE = {
   style: {
     base: {
-      color: '#f0f0f2',
+      color: '#0c0c0e',
       fontFamily: 'Inter, sans-serif',
       fontSize: '16px',
-      '::placeholder': { color: '#555565' },
+      '::placeholder': { color: '#9898a8' },
     },
-    invalid: { color: '#ff4466' },
+    invalid: { color: '#cc2200' },
   }
 }
 

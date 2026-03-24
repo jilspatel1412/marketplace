@@ -6,6 +6,7 @@ export default function CreateListing() {
   const navigate = useNavigate()
   const fileRef = useRef()
   const [categories, setCategories] = useState([])
+  const [listingType, setListingType] = useState('fixed') // 'fixed' | 'auction'
   const [form, setForm] = useState({
     title: '', description: '', category: '', condition: 'used',
     price: '', is_negotiable: false, status: 'active',
@@ -24,12 +25,19 @@ export default function CreateListing() {
     setError(''); setLoading(true)
     try {
       const payload = { ...form }
-      if (!payload.auction_end_time) delete payload.auction_end_time
+      if (listingType === 'fixed') {
+        payload.auction_end_time = null
+      } else {
+        if (!payload.auction_end_time) {
+          setError('Please set an auction end time.')
+          setLoading(false)
+          return
+        }
+      }
       if (!payload.category) delete payload.category
       const res = await listingAPI.create(payload)
       const id = res.data.id
 
-      // Upload images
       for (const img of images) {
         const fd = new FormData()
         fd.append('image', img)
@@ -47,12 +55,27 @@ export default function CreateListing() {
     } finally { setLoading(false) }
   }
 
+  const typeBtn = (type, label, desc) => (
+    <div
+      onClick={() => setListingType(type)}
+      style={{
+        flex: 1, padding: '14px 16px', borderRadius: 8, cursor: 'pointer',
+        border: `2px solid ${listingType === type ? 'var(--accent)' : 'var(--border)'}`,
+        background: listingType === type ? 'rgba(var(--accent-rgb, 100,180,255),0.08)' : 'var(--bg3)',
+        transition: 'all 0.15s',
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 2, color: listingType === type ? 'var(--accent)' : 'var(--text1)' }}>{label}</div>
+      <div style={{ fontSize: '0.78rem', color: 'var(--text3)' }}>{desc}</div>
+    </div>
+  )
+
   return (
     <div className="page">
       <div className="container" style={{ maxWidth: 680 }}>
         <div className="page-header">
           <h1>New Listing</h1>
-          <p>List your item for sale or auction</p>
+          <p>List your item for sale</p>
         </div>
         <div className="card card-body">
           {error && <div className="alert alert-error">{error}</div>}
@@ -82,9 +105,19 @@ export default function CreateListing() {
                 </select>
               </div>
             </div>
+
+            {/* Listing Type */}
+            <div className="form-group">
+              <label>Listing Type *</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {typeBtn('fixed', 'Fixed Price', 'Set a price, buyers buy instantly')}
+                {typeBtn('auction', 'Auction', 'Buyers bid, highest wins')}
+              </div>
+            </div>
+
             <div className="form-row">
               <div className="form-group">
-                <label>Price ($) *</label>
+                <label>{listingType === 'auction' ? 'Starting Price ($) *' : 'Price ($) *'}</label>
                 <input type="number" min="0.01" step="0.01" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
               </div>
               <div className="form-group">
@@ -95,16 +128,29 @@ export default function CreateListing() {
                 </select>
               </div>
             </div>
-            <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" style={{ width: 'auto' }} checked={form.is_negotiable} onChange={e => setForm({...form, is_negotiable: e.target.checked})} />
-                Accept offers (negotiable price)
-              </label>
-            </div>
-            <div className="form-group">
-              <label>Auction End Time (leave blank for fixed price)</label>
-              <input type="datetime-local" value={form.auction_end_time} onChange={e => setForm({...form, auction_end_time: e.target.value})} />
-            </div>
+
+            {listingType === 'fixed' && (
+              <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" style={{ width: 'auto' }} checked={form.is_negotiable} onChange={e => setForm({...form, is_negotiable: e.target.checked})} />
+                  Accept offers (negotiable price)
+                </label>
+              </div>
+            )}
+
+            {listingType === 'auction' && (
+              <div className="form-group">
+                <label>Auction End Time *</label>
+                <input
+                  type="datetime-local"
+                  value={form.auction_end_time}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  onChange={e => setForm({...form, auction_end_time: e.target.value})}
+                  required
+                />
+              </div>
+            )}
+
             <div className="form-group">
               <label>Images (up to 5)</label>
               <input

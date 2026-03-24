@@ -72,6 +72,11 @@ export const listingAPI = {
   favorite: (id) => api.post(`/api/listings/${id}/favorite/`),
   unfavorite: (id) => api.delete(`/api/listings/${id}/favorite/`),
   favorites: () => api.get('/api/listings/favorites/'),
+  contact: (id, data) => api.post(`/api/listings/${id}/contact/`, data),
+  buyNow: (id) => api.post(`/api/listings/${id}/buy/`),
+  acceptBid: (id) => api.post(`/api/listings/${id}/accept-bid/`),
+  deleteImage: (listingId, imageId) => api.delete(`/api/listings/${listingId}/images/${imageId}/`),
+  report: (id, data) => api.post(`/api/listings/${id}/report/`, data),
 }
 
 // ─── Offers ────────────────────────────────────────────────────────────────
@@ -92,11 +97,35 @@ export const bidAPI = {
 export const orderAPI = {
   list: () => api.get('/api/orders/'),
   get: (id) => api.get(`/api/orders/${id}/`),
+  shippingLabel: (id) => `${api.defaults.baseURL}/api/orders/${id}/shipping-label/`,
+  updateStatus: (id, data) => api.patch(`/api/orders/${id}/status/`, data),
+  createReview: (id, data) => api.post(`/api/orders/${id}/review/`, data),
+  sellerReviews: (sellerId) => api.get(`/api/orders/seller/${sellerId}/reviews/`),
+}
+
+// ─── Users ─────────────────────────────────────────────────────────────────
+export const userAPI = {
+  sellerProfile: (username) => api.get(`/api/auth/sellers/${username}/`),
+}
+
+// ─── Notifications ──────────────────────────────────────────────────────────
+export const notificationAPI = {
+  list: () => api.get('/api/notifications/'),
+  markRead: (id) => api.post(`/api/notifications/${id}/read/`),
+  markAllRead: () => api.post('/api/notifications/read-all/'),
 }
 
 // ─── Payments ──────────────────────────────────────────────────────────────
 export const paymentAPI = {
   createIntent: (orderId) => api.post('/api/payments/create-intent/', { order_id: orderId }),
+}
+
+// ─── Messages ──────────────────────────────────────────────────────────────
+export const messageAPI = {
+  threads: () => api.get('/api/messages/'),
+  unread: () => api.get('/api/messages/unread/'),
+  thread: (partnerId) => api.get(`/api/messages/${partnerId}/`),
+  send: (partnerId, data) => api.post(`/api/messages/${partnerId}/`, data),
 }
 
 // ─── Analytics ─────────────────────────────────────────────────────────────

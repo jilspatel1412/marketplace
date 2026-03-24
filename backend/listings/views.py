@@ -1,4 +1,6 @@
+import stripe
 from decimal import Decimal
+from django.conf import settings as django_settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -8,14 +10,13 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from notifications.utils import send_email
-from .models import Category, Listing, ListingImage, Offer, Bid, SearchLog, UserInteraction
+from notifications.utils import send_email, create_notification
+from orders.models import Order, Payment
+from .models import Category, Listing, ListingImage, Offer, Bid, SearchLog, UserInteraction, ListingReport
 from .serializers import (
     CategorySerializer, ListingSerializer, ListingCreateSerializer,
     ListingImageSerializer, OfferSerializer, BidSerializer
 )
-from .permissions import IsSeller, IsBuyer, IsListingOwner
-
 
 # ─── Categories ───────────────────────────────────────────────────────────────
 
@@ -55,8 +56,30 @@ def listing_list_create(request):
         if max_price:
             qs = qs.filter(price__lte=max_price)
 
-        serializer = ListingSerializer(qs, many=True, context={'request': request})
-        return Response(serializer.data)
+        sort = request.query_params.get('sort', 'newest')
+        if sort == 'price_asc':
+            qs = qs.order_by('price')
+        elif sort == 'price_desc':
+            qs = qs.order_by('-price')
+        elif sort == 'ending_soon':
+            qs = qs.filter(auction_end_time__isnull=False).order_by('auction_end_time')
+        else:
+            qs = qs.order_by('-created_at')
+
+        total = qs.count()
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+        except ValueError:
+            page = 1
+        page_size = 20
+        start = (page - 1) * page_size
+        serializer = ListingSerializer(qs[start:start + page_size], many=True, context={'request': request})
+        return Response({
+            'results': serializer.data,
+            'count': total,
+            'page': page,
+            'total_pages': max(1, (total + page_size - 1) // page_size),
+        })
 
     # POST - seller only
     if request.user.role != 'seller':
@@ -77,11 +100,28 @@ def listing_detail(request, pk):
         return Response({'error': 'Listing not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
-        # Log view interaction for authenticated users
         if request.user.is_authenticated:
-            UserInteraction.objects.get_or_create(
+            if not UserInteraction.objects.filter(
                 user=request.user, listing=listing, interaction_type='view'
-            )
+            ).exists():
+                UserInteraction.objects.create(
+                    user=request.user, listing=listing, interaction_type='view'
+                )
+        # Lazy auto-settle: if auction expired with bids, settle it now
+        if (listing.is_auction and listing.status == 'active'
+                and listing.auction_end_time and listing.auction_end_time < timezone.now()):
+            top_bid = Bid.objects.filter(listing=listing).order_by('-amount').first()
+            if top_bid:
+                try:
+                    from listings.management.commands.settle_auctions import _settle_auction
+                    _settle_auction(listing, top_bid)
+                    listing.refresh_from_db()
+                except Exception:
+                    pass
+            else:
+                listing.status = 'closed'
+                listing.save()
+                listing.refresh_from_db()
         return Response(ListingSerializer(listing, context={'request': request}).data)
 
     # Mutations require ownership
@@ -93,7 +133,8 @@ def listing_detail(request, pk):
         serializer = ListingCreateSerializer(listing, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(ListingSerializer(listing, context={'request': request}).data)
+        serializer.instance.refresh_from_db()
+        return Response(ListingSerializer(serializer.instance, context={'request': request}).data)
 
     if request.method == 'DELETE':
         listing.delete()
@@ -165,8 +206,8 @@ def offer_list_create(request, pk):
         return Response({'error': 'Only buyers can submit offers.'}, status=status.HTTP_403_FORBIDDEN)
     if listing.seller == request.user:
         return Response({'error': 'You cannot offer on your own listing.'}, status=status.HTTP_400_BAD_REQUEST)
-    if not listing.is_negotiable:
-        return Response({'error': 'This listing does not accept offers.'}, status=status.HTTP_400_BAD_REQUEST)
+    if listing.is_auction:
+        return Response({'error': 'Use bidding for auction listings.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Check for existing pending offer
     if Offer.objects.filter(listing=listing, buyer=request.user, status='PENDING').exists():
@@ -181,6 +222,12 @@ def offer_list_create(request, pk):
         recipient=listing.seller.email,
         subject=f'New offer on "{listing.title}"',
         body=f'Hi {listing.seller.username},\n\n{request.user.username} submitted an offer of ${offer.offer_price} on your listing "{listing.title}".\n\nLog in to review it.\n\nSellIt Team'
+    )
+    create_notification(
+        listing.seller, 'offer_received',
+        f'New offer on "{listing.title}"',
+        f'{request.user.username} offered ${offer.offer_price}.',
+        '/seller/offers'
     )
 
     return Response(OfferSerializer(offer).data, status=status.HTTP_201_CREATED)
@@ -220,10 +267,6 @@ def offer_update(request, offer_id):
             listing.save()
 
             # Create order + Stripe PaymentIntent
-            import stripe
-            from django.conf import settings as django_settings
-            from orders.models import Order, Payment
-
             stripe.api_key = django_settings.STRIPE_SECRET_KEY
 
             order = Order.objects.create(
@@ -259,6 +302,12 @@ def offer_update(request, offer_id):
                 subject=f'Your offer on "{listing.title}" was accepted!',
                 body=f'Hi {offer.buyer.username},\n\nYour offer of ${offer.offer_price} on "{listing.title}" was accepted!\n\nProceed to payment to complete your purchase.\n\nSellIt Team'
             )
+            create_notification(
+                offer.buyer, 'offer_accepted',
+                f'Offer accepted on "{listing.title}"',
+                f'Your offer of ${offer.offer_price} was accepted. Pay now to complete.',
+                '/buyer/orders'
+            )
 
             response_data = OfferSerializer(offer).data
             if intent:
@@ -271,6 +320,12 @@ def offer_update(request, offer_id):
         recipient=offer.buyer.email,
         subject=f'Your offer on "{listing.title}" was declined',
         body=f'Hi {offer.buyer.username},\n\nUnfortunately your offer of ${offer.offer_price} on "{listing.title}" was declined.\n\nSellIt Team'
+    )
+    create_notification(
+        offer.buyer, 'offer_rejected',
+        f'Offer declined on "{listing.title}"',
+        f'Your offer of ${offer.offer_price} was not accepted.',
+        f'/listings/{listing.id}'
     )
     return Response(OfferSerializer(offer).data)
 
@@ -313,9 +368,28 @@ def bid_list_create(request, pk):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Find previous top bidder to notify them they've been outbid
+        prev_top = Bid.objects.filter(listing=listing).order_by('-amount').first()
+
         bid = serializer.save(listing=listing, bidder=request.user)
         listing.current_bid = amount
         listing.save()
+
+    # Notify seller of new bid
+    create_notification(
+        listing.seller, 'new_bid',
+        f'New bid on "{listing.title}"',
+        f'{request.user.username} bid ${amount}.',
+        f'/listings/{listing.id}'
+    )
+    # Notify previous top bidder they've been outbid
+    if prev_top and prev_top.bidder != request.user:
+        create_notification(
+            prev_top.bidder, 'outbid',
+            f'You were outbid on "{listing.title}"',
+            f'Someone bid ${amount}. Bid again to stay in the lead.',
+            f'/listings/{listing.id}'
+        )
 
     return Response(BidSerializer(bid).data, status=status.HTTP_201_CREATED)
 
@@ -329,7 +403,12 @@ def log_view(request, pk):
         listing = Listing.objects.get(pk=pk)
     except Listing.DoesNotExist:
         return Response({'error': 'Listing not found.'}, status=status.HTTP_404_NOT_FOUND)
-    UserInteraction.objects.get_or_create(user=request.user, listing=listing, interaction_type='view')
+    if not UserInteraction.objects.filter(
+        user=request.user, listing=listing, interaction_type='view'
+    ).exists():
+        UserInteraction.objects.create(
+            user=request.user, listing=listing, interaction_type='view'
+        )
     return Response({'status': 'ok'})
 
 
@@ -361,6 +440,35 @@ def my_favorites(request):
     return Response(ListingSerializer(listings, many=True, context={'request': request}).data)
 
 
+# ─── Contact Seller ───────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def contact_seller(request, pk):
+    try:
+        listing = Listing.objects.select_related('seller').get(pk=pk)
+    except Listing.DoesNotExist:
+        return Response({'error': 'Listing not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if listing.seller == request.user:
+        return Response({'error': 'You cannot contact yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    message = request.data.get('message', '').strip()
+    if not message:
+        return Response({'error': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    send_email(
+        recipient=listing.seller.email,
+        subject=f'Message about your listing "{listing.title}"',
+        body=(
+            f'Hi {listing.seller.username},\n\n'
+            f'{request.user.username} sent you a message about your listing "{listing.title}":\n\n'
+            f'{message}\n\nSellIt Team'
+        )
+    )
+    return Response({'status': 'Message sent.'})
+
+
 # ─── Seller Dashboard ────────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -379,3 +487,178 @@ def seller_offers(request):
         return Response({'error': 'Sellers only.'}, status=status.HTTP_403_FORBIDDEN)
     offers = Offer.objects.filter(listing__seller=request.user).select_related('buyer', 'listing')
     return Response(OfferSerializer(offers, many=True).data)
+
+
+# ─── Buy Now ──────────────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def buy_now(request, pk):
+    try:
+        listing = Listing.objects.select_related('seller').get(pk=pk)
+    except Listing.DoesNotExist:
+        return Response({'error': 'Listing not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if listing.seller == request.user:
+        return Response({'error': 'You cannot buy your own listing.'}, status=status.HTTP_400_BAD_REQUEST)
+    if listing.status != 'active':
+        return Response({'error': 'Listing is not available.'}, status=status.HTTP_400_BAD_REQUEST)
+    if listing.is_auction:
+        return Response({'error': 'Use bidding for auction listings.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        order = Order.objects.create(
+            listing=listing,
+            buyer=request.user,
+            seller=listing.seller,
+            total_amount=listing.price,
+            status='pending_payment',
+        )
+
+        stripe.api_key = django_settings.STRIPE_SECRET_KEY
+        intent = None
+        client_secret = None
+        if django_settings.STRIPE_SECRET_KEY:
+            try:
+                intent = stripe.PaymentIntent.create(
+                    amount=int(listing.price * 100),
+                    currency='usd',
+                    metadata={'order_id': str(order.id)},
+                )
+                from orders.models import Payment as PaymentModel
+                PaymentModel.objects.create(
+                    order=order,
+                    stripe_payment_intent_id=intent.id,
+                    amount=listing.price,
+                    status='pending',
+                )
+                client_secret = intent.client_secret
+            except Exception:
+                pass
+
+    return Response({
+        'order_id': order.id,
+        'client_secret': client_secret,
+        'amount': str(listing.price),
+    }, status=status.HTTP_201_CREATED)
+
+
+# ─── Accept Auction Bid ───────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def accept_auction_bid(request, pk):
+    try:
+        listing = Listing.objects.select_related('seller').get(pk=pk)
+    except Listing.DoesNotExist:
+        return Response({'error': 'Listing not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if listing.seller != request.user:
+        return Response({'error': 'Only the seller can accept a bid.'}, status=status.HTTP_403_FORBIDDEN)
+    if not listing.is_auction:
+        return Response({'error': 'This listing is not an auction.'}, status=status.HTTP_400_BAD_REQUEST)
+    if listing.status != 'active':
+        return Response({'error': 'Listing is not active.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Get the highest bid
+    top_bid = Bid.objects.filter(listing=listing).order_by('-amount').first()
+    if not top_bid:
+        return Response({'error': 'No bids have been placed yet.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        listing.status = 'sold'
+        listing.save()
+
+        order = Order.objects.create(
+            listing=listing,
+            buyer=top_bid.bidder,
+            seller=listing.seller,
+            total_amount=top_bid.amount,
+            status='pending_payment',
+        )
+
+        stripe.api_key = django_settings.STRIPE_SECRET_KEY
+        client_secret = None
+        if django_settings.STRIPE_SECRET_KEY:
+            try:
+                intent = stripe.PaymentIntent.create(
+                    amount=int(top_bid.amount * 100),
+                    currency='usd',
+                    metadata={'order_id': str(order.id)},
+                )
+                from orders.models import Payment as PaymentModel
+                PaymentModel.objects.create(
+                    order=order,
+                    stripe_payment_intent_id=intent.id,
+                    amount=top_bid.amount,
+                    status='pending',
+                )
+                client_secret = intent.client_secret
+            except Exception:
+                pass
+
+        # Notify winner
+        send_email(
+            recipient=top_bid.bidder.email,
+            subject=f'You won the auction for "{listing.title}"!',
+            body=(
+                f'Hi {top_bid.bidder.username},\n\n'
+                f'Congratulations! The seller accepted your bid of ${top_bid.amount} '
+                f'for "{listing.title}".\n\n'
+                f'Please complete your payment to confirm the purchase.\n\nSellIt Team'
+            )
+        )
+
+    return Response({
+        'order_id': order.id,
+        'client_secret': client_secret,
+        'winner': top_bid.bidder.username,
+        'amount': str(top_bid.amount),
+    })
+
+
+# ─── Report Listing ───────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def report_listing(request, pk):
+    try:
+        listing = Listing.objects.get(pk=pk)
+    except Listing.DoesNotExist:
+        return Response({'error': 'Listing not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if listing.seller == request.user:
+        return Response({'error': 'You cannot report your own listing.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    reason = request.data.get('reason', '').strip()
+    valid_reasons = [r[0] for r in ListingReport.REASON_CHOICES]
+    if reason not in valid_reasons:
+        return Response({'error': f'Reason must be one of: {", ".join(valid_reasons)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+    _, created = ListingReport.objects.get_or_create(
+        reporter=request.user, listing=listing,
+        defaults={'reason': reason, 'detail': request.data.get('detail', '').strip()}
+    )
+    if not created:
+        return Response({'error': 'You have already reported this listing.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({'status': 'Report submitted. Our team will review it.'}, status=status.HTTP_201_CREATED)
+
+
+# ─── Delete Listing Image ─────────────────────────────────────────────────────
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_listing_image(request, pk, image_id):
+    try:
+        listing = Listing.objects.get(pk=pk, seller=request.user)
+    except Listing.DoesNotExist:
+        return Response({'error': 'Listing not found or not yours.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        image = ListingImage.objects.get(pk=image_id, listing=listing)
+    except ListingImage.DoesNotExist:
+        return Response({'error': 'Image not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    image.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
