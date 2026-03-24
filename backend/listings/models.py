@@ -124,6 +124,28 @@ class SearchLog(models.Model):
         ordering = ['-created_at']
 
 
+class ListingReport(models.Model):
+    REASON_CHOICES = [
+        ('fake', 'Fake or counterfeit item'),
+        ('spam', 'Spam or misleading'),
+        ('inappropriate', 'Inappropriate content'),
+        ('sold', 'Already sold / unavailable'),
+        ('other', 'Other'),
+    ]
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reports')
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name='reports')
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    detail = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'listing_reports'
+        unique_together = (('reporter', 'listing'),)
+
+    def __str__(self):
+        return f'{self.reporter.username} reported {self.listing.title}'
+
+
 class UserInteraction(models.Model):
     INTERACTION_CHOICES = [
         ('view', 'View'),
@@ -138,6 +160,7 @@ class UserInteraction(models.Model):
     class Meta:
         db_table = 'user_interactions'
         ordering = ['-created_at']
+        unique_together = (('user', 'listing', 'interaction_type'),)
 
     def __str__(self):
         return f'{self.user.username} {self.interaction_type} {self.listing.title}'

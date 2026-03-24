@@ -9,14 +9,24 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'password2', 'role')
-        extra_kwargs = {'email': {'required': True}}
+        fields = ('username', 'email', 'phone_number', 'password', 'password2', 'role',
+                  'address_line1', 'city', 'state_province', 'postal_code', 'country')
+        extra_kwargs = {
+            'email': {'required': True},
+            'phone_number': {'required': True},
+        }
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({'password': 'Passwords do not match.'})
         if User.objects.filter(email=attrs['email']).exists():
             raise serializers.ValidationError({'email': 'Email already registered.'})
+        phone = attrs.get('phone_number', '').strip()
+        if not phone:
+            raise serializers.ValidationError({'phone_number': 'Phone number is required.'})
+        if User.objects.filter(phone_number=phone).exists():
+            raise serializers.ValidationError({'phone_number': 'Phone number already registered.'})
+        attrs['phone_number'] = phone
         return attrs
 
     def create(self, validated_data):
@@ -33,7 +43,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'role', 'is_verified', 'bio', 'avatar_url', 'date_joined')
+        fields = ('id', 'username', 'email', 'phone_number', 'role', 'is_verified', 'bio', 'avatar_url',
+                  'address_line1', 'city', 'state_province', 'postal_code', 'country', 'date_joined')
         read_only_fields = ('id', 'email', 'role', 'is_verified', 'date_joined')
 
     def get_avatar_url(self, obj):
@@ -48,7 +59,8 @@ class UserSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('username', 'bio', 'avatar', 'role')
+        fields = ('username', 'bio', 'avatar', 'role', 'phone_number',
+                  'address_line1', 'city', 'state_province', 'postal_code', 'country')
 
     def validate_role(self, value):
         allowed = ['buyer', 'seller']
@@ -64,9 +76,3 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 class PasswordResetConfirmSerializer(serializers.Serializer):
     token = serializers.UUIDField()
     password = serializers.CharField(write_only=True, validators=[validate_password])
-    password2 = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({'password': 'Passwords do not match.'})
-        return attrs

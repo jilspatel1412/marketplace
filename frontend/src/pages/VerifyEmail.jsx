@@ -13,7 +13,7 @@ export function VerifyEmail() {
     authAPI.verifyEmail(token)
       .then(() => setStatus('success'))
       .catch(() => setStatus('error'))
-  }, [])
+  }, [params])
 
   return (
     <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -66,7 +66,7 @@ export function ResetPassword() {
     if (form.password !== form.password2) { setError('Passwords do not match.'); return }
     setError(''); setLoading(true)
     try {
-      await authAPI.passwordResetConfirm({ token, ...form })
+      await authAPI.passwordResetConfirm({ token, password: form.password })
       setSuccess('Password reset! Redirecting to login...')
       setTimeout(() => navigate('/login'), 2000)
     } catch (err) {

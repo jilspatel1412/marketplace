@@ -1,3 +1,4 @@
+from django.db.models import Avg, Count
 from rest_framework import serializers
 from .models import Category, Listing, ListingImage, Offer, Bid, UserInteraction
 from users.serializers import UserSerializer
@@ -31,6 +32,7 @@ class ListingSerializer(serializers.ModelSerializer):
     seller_info = serializers.SerializerMethodField()
     bid_count = serializers.SerializerMethodField()
     is_auction = serializers.BooleanField(read_only=True)
+    is_favorited = serializers.SerializerMethodField()
 
     class Meta:
         model = Listing
@@ -38,19 +40,33 @@ class ListingSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'category', 'category_detail',
             'condition', 'price', 'is_negotiable', 'status',
             'auction_end_time', 'current_bid', 'is_auction',
-            'images', 'seller_info', 'bid_count', 'created_at', 'updated_at'
+            'images', 'seller_info', 'bid_count', 'is_favorited', 'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'seller_info', 'created_at', 'updated_at', 'current_bid')
 
     def get_seller_info(self, obj):
+        from orders.models import Review
+        stats = Review.objects.filter(seller=obj.seller).aggregate(
+            avg=Avg('rating'), count=Count('id')
+        )
         return {
             'id': obj.seller.id,
             'username': obj.seller.username,
             'is_verified': obj.seller.is_verified,
+            'avg_rating': round(stats['avg'], 1) if stats['avg'] else None,
+            'review_count': stats['count'],
         }
 
     def get_bid_count(self, obj):
         return obj.bids.count()
+
+    def get_is_favorited(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return UserInteraction.objects.filter(
+                user=request.user, listing=obj, interaction_type='favorite'
+            ).exists()
+        return False
 
 
 class ListingCreateSerializer(serializers.ModelSerializer):
@@ -71,11 +87,12 @@ class ListingCreateSerializer(serializers.ModelSerializer):
 
 class OfferSerializer(serializers.ModelSerializer):
     buyer_username = serializers.CharField(source='buyer.username', read_only=True)
+    listing_title = serializers.CharField(source='listing.title', read_only=True)
 
     class Meta:
         model = Offer
-        fields = ('id', 'listing', 'buyer', 'buyer_username', 'offer_price', 'status', 'created_at')
-        read_only_fields = ('id', 'buyer', 'listing', 'status', 'created_at', 'buyer_username')
+        fields = ('id', 'listing', 'listing_title', 'buyer', 'buyer_username', 'offer_price', 'status', 'created_at')
+        read_only_fields = ('id', 'buyer', 'listing', 'listing_title', 'status', 'created_at', 'buyer_username')
 
     def validate_offer_price(self, value):
         if value <= 0:

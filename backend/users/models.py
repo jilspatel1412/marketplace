@@ -9,10 +9,17 @@ class User(AbstractUser):
         ('seller', 'Seller'),
         ('admin', 'Admin'),
     ]
+    email = models.EmailField(unique=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='buyer')
     is_verified = models.BooleanField(default=False)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     bio = models.TextField(blank=True, default='')
+    phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    address_line1 = models.CharField(max_length=255, blank=True, default='')
+    city = models.CharField(max_length=100, blank=True, default='')
+    state_province = models.CharField(max_length=100, blank=True, default='')
+    postal_code = models.CharField(max_length=20, blank=True, default='')
+    country = models.CharField(max_length=100, blank=True, default='')
     verification_token = models.UUIDField(default=uuid.uuid4, unique=True, null=True, blank=True)
     password_reset_token = models.UUIDField(null=True, blank=True)
 

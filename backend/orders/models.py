@@ -6,6 +6,8 @@ class Order(models.Model):
     STATUS_CHOICES = [
         ('pending_payment', 'Pending Payment'),
         ('paid', 'Paid'),
+        ('shipped', 'Shipped'),
+        ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
     ]
 
@@ -15,6 +17,7 @@ class Order(models.Model):
     offer = models.ForeignKey('listings.Offer', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     total_amount = models.DecimalField(max_digits=12, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_payment')
+    tracking_number = models.CharField(max_length=100, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -43,6 +46,22 @@ class Payment(models.Model):
 
     def __str__(self):
         return f'Payment for Order #{self.order.id} ({self.status})'
+
+
+class Review(models.Model):
+    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='review')
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reviews_given')
+    seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reviews_received')
+    rating = models.PositiveSmallIntegerField()  # 1-5
+    comment = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'reviews'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Review {self.rating}★ by {self.reviewer.username} for {self.seller.username}'
 
 
 class Receipt(models.Model):

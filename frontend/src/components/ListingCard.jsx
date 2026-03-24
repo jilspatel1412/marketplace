@@ -36,6 +36,12 @@ export default function ListingCard({ listing }) {
         {listing.is_negotiable && !listing.is_auction && (
           <div style={{ marginTop: 6, fontSize: '0.78rem', color: 'var(--text2)' }}>Offers welcome</div>
         )}
+        {listing.seller_info?.avg_rating && (
+          <div style={{ marginTop: 4, fontSize: '0.74rem', color: '#f59e0b' }}>
+            {'★'.repeat(Math.round(listing.seller_info.avg_rating))}{'☆'.repeat(5 - Math.round(listing.seller_info.avg_rating))}
+            <span style={{ color: 'var(--text3)', marginLeft: 4 }}>{listing.seller_info.avg_rating}</span>
+          </div>
+        )}
       </div>
     </div>
   )

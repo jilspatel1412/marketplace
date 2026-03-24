@@ -12,7 +12,12 @@ urlpatterns = [
     path('<int:pk>/related/', views.related_listings, name='related_listings'),
     path('<int:pk>/offers/', views.offer_list_create, name='offer_list_create'),
     path('<int:pk>/bids/', views.bid_list_create, name='bid_list_create'),
+    path('<int:pk>/contact/', views.contact_seller, name='contact_seller'),
     path('<int:pk>/view/', views.log_view, name='log_view'),
     path('<int:pk>/favorite/', views.toggle_favorite, name='toggle_favorite'),
+    path('<int:pk>/buy/', views.buy_now, name='buy_now'),
+    path('<int:pk>/accept-bid/', views.accept_auction_bid, name='accept_auction_bid'),
+    path('<int:pk>/images/<int:image_id>/', views.delete_listing_image, name='delete_listing_image'),
     path('offers/<int:offer_id>/', views.offer_update, name='offer_update'),
+    path('<int:pk>/report/', views.report_listing, name='report_listing'),
 ]

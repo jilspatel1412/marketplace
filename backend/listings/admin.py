@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Listing, ListingImage, Offer, Bid, UserInteraction, SearchLog
+from .models import Category, Listing, ListingImage, Offer, Bid, UserInteraction
 
 
 @admin.register(Category)

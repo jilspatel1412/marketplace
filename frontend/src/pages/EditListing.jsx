@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { listingAPI, categoryAPI } from '../api'
 
 export default function EditListing() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const fileRef = useRef()
   const [categories, setCategories] = useState([])
+  const [listingType, setListingType] = useState('fixed') // 'fixed' | 'auction'
   const [form, setForm] = useState(null)
+  const [existingImages, setExistingImages] = useState([])
+  const [newImages, setNewImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -15,6 +19,9 @@ export default function EditListing() {
   useEffect(() => {
     Promise.all([listingAPI.get(id), categoryAPI.list()]).then(([lRes, cRes]) => {
       const l = lRes.data
+      const hasAuction = !!l.auction_end_time
+      setListingType(hasAuction ? 'auction' : 'fixed')
+      setExistingImages(l.images || [])
       setForm({
         title: l.title, description: l.description,
         category: l.category || '',
@@ -23,7 +30,7 @@ export default function EditListing() {
         auction_end_time: l.auction_end_time ? l.auction_end_time.slice(0, 16) : '',
       })
       setCategories(cRes.data)
-    }).finally(() => setLoading(false))
+    }).catch(() => setError('Failed to load listing.')).finally(() => setLoading(false))
   }, [id])
 
   const handleSubmit = async (e) => {
@@ -31,9 +38,25 @@ export default function EditListing() {
     setError(''); setSaving(true)
     try {
       const payload = { ...form }
-      if (!payload.auction_end_time) payload.auction_end_time = null
+      if (listingType === 'fixed') {
+        payload.auction_end_time = null
+        // keep is_negotiable as-is
+      } else {
+        if (!payload.auction_end_time) {
+          setError('Please set an auction end time.')
+          setSaving(false)
+          return
+        }
+        payload.is_negotiable = false
+      }
       if (!payload.category) delete payload.category
       await listingAPI.update(id, payload)
+      // Upload any new images
+      for (const img of newImages) {
+        const fd = new FormData()
+        fd.append('image', img)
+        await listingAPI.uploadImage(id, fd)
+      }
       setSuccess('Listing updated!')
       setTimeout(() => navigate('/seller/listings'), 1200)
     } catch (err) {
@@ -41,6 +64,21 @@ export default function EditListing() {
       setError(typeof data === 'object' ? Object.values(data).flat().join(' ') : 'Update failed.')
     } finally { setSaving(false) }
   }
+
+  const typeBtn = (type, label, desc) => (
+    <div
+      onClick={() => setListingType(type)}
+      style={{
+        flex: 1, padding: '14px 16px', borderRadius: 8, cursor: 'pointer',
+        border: `2px solid ${listingType === type ? 'var(--accent)' : 'var(--border)'}`,
+        background: listingType === type ? 'rgba(var(--accent-rgb, 100,180,255),0.08)' : 'var(--bg3)',
+        transition: 'all 0.15s',
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 2, color: listingType === type ? 'var(--accent)' : 'var(--text1)' }}>{label}</div>
+      <div style={{ fontSize: '0.78rem', color: 'var(--text3)' }}>{desc}</div>
+    </div>
+  )
 
   if (loading) return <div className="spinner" />
 
@@ -79,9 +117,19 @@ export default function EditListing() {
                 </select>
               </div>
             </div>
+
+            {/* Listing Type */}
+            <div className="form-group">
+              <label>Listing Type</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {typeBtn('fixed', 'Fixed Price', 'Set a price, buyers buy instantly')}
+                {typeBtn('auction', 'Auction', 'Buyers bid, highest wins')}
+              </div>
+            </div>
+
             <div className="form-row">
               <div className="form-group">
-                <label>Price ($)</label>
+                <label>{listingType === 'auction' ? 'Starting Price ($)' : 'Price ($)'}</label>
                 <input type="number" min="0.01" step="0.01" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
               </div>
               <div className="form-group">
@@ -93,16 +141,73 @@ export default function EditListing() {
                 </select>
               </div>
             </div>
-            <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" style={{ width: 'auto' }} checked={form.is_negotiable} onChange={e => setForm({...form, is_negotiable: e.target.checked})} />
-                Accept offers
-              </label>
-            </div>
-            <div className="form-group">
-              <label>Auction End Time</label>
-              <input type="datetime-local" value={form.auction_end_time} onChange={e => setForm({...form, auction_end_time: e.target.value})} />
-            </div>
+
+            {listingType === 'fixed' && (
+              <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" style={{ width: 'auto' }} checked={form.is_negotiable} onChange={e => setForm({...form, is_negotiable: e.target.checked})} />
+                  Accept offers (negotiable price)
+                </label>
+              </div>
+            )}
+
+            {listingType === 'auction' && (
+              <div className="form-group">
+                <label>Auction End Time *</label>
+                <input
+                  type="datetime-local"
+                  value={form.auction_end_time}
+                  onChange={e => setForm({...form, auction_end_time: e.target.value})}
+                  required
+                />
+              </div>
+            )}
+
+            {/* Existing Images */}
+            {existingImages.length > 0 && (
+              <div className="form-group">
+                <label>Current Images</label>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {existingImages.map(img => (
+                    <div key={img.id} style={{ position: 'relative', width: 80, height: 80 }}>
+                      <img src={img.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--border)' }} />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await listingAPI.deleteImage(id, img.id)
+                            setExistingImages(prev => prev.filter(i => i.id !== img.id))
+                          } catch { alert('Could not delete image.') }
+                        }}
+                        style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: '50%', background: 'var(--red)', color: '#fff', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, lineHeight: 1, border: '2px solid var(--bg)' }}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add New Images */}
+            {existingImages.length < 5 && (
+              <div className="form-group">
+                <label>Add Images ({existingImages.length}/5 used)</label>
+                <input
+                  type="file" accept="image/*" multiple ref={fileRef}
+                  style={{ padding: '10px 0', background: 'none', border: 'none' }}
+                  onChange={e => setNewImages(Array.from(e.target.files).slice(0, 5 - existingImages.length))}
+                />
+                {newImages.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {newImages.map((f, i) => (
+                      <div key={i} style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: '1.5px solid var(--border)' }}>
+                        <img src={URL.createObjectURL(f)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button className="btn btn-primary" type="submit" disabled={saving} style={{ flex: 1 }}>
                 {saving ? 'Saving...' : 'Save Changes'}
