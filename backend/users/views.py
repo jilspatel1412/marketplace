@@ -2,7 +2,8 @@ import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from rest_framework import status, generics
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -42,7 +43,7 @@ def verify_email(request):
         return Response({'error': 'Token is required.'}, status=status.HTTP_400_BAD_REQUEST)
     try:
         user = User.objects.get(verification_token=token)
-    except (User.DoesNotExist, Exception):
+    except Exception:
         return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
 
     user.is_verified = True
@@ -90,8 +91,44 @@ def password_reset_confirm(request):
     return Response({'message': 'Password reset successful. You can now log in.'})
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def seller_profile(request, username):
+    try:
+        seller = User.objects.get(username=username, role='seller')
+    except User.DoesNotExist:
+        return Response({'error': 'Seller not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    from django.db.models import Avg
+    from listings.models import Listing
+    from listings.serializers import ListingSerializer
+    from orders.models import Review
+    from orders.serializers import ReviewSerializer
+
+    active_listings = (
+        Listing.objects.filter(seller=seller, status='active')
+        .prefetch_related('images').select_related('category')[:12]
+    )
+    reviews_qs = Review.objects.filter(seller=seller).select_related('reviewer').order_by('-created_at')[:20]
+    avg_data = Review.objects.filter(seller=seller).aggregate(avg=Avg('rating'))
+    review_count = Review.objects.filter(seller=seller).count()
+
+    return Response({
+        'id': seller.id,
+        'username': seller.username,
+        'bio': seller.bio,
+        'is_verified': seller.is_verified,
+        'date_joined': seller.date_joined,
+        'avg_rating': round(avg_data['avg'], 1) if avg_data['avg'] else None,
+        'review_count': review_count,
+        'listings': ListingSerializer(active_listings, many=True, context={'request': request}).data,
+        'reviews': ReviewSerializer(reviews_qs, many=True).data,
+    })
+
+
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def me(request):
     user = request.user
     if request.method == 'GET':
@@ -101,4 +138,5 @@ def me(request):
         serializer = UserUpdateSerializer(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(UserSerializer(user, context={'request': request}).data)
+        serializer.instance.refresh_from_db()
+        return Response(UserSerializer(serializer.instance, context={'request': request}).data)

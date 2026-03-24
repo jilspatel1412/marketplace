@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { offerAPI } from '../api'
 
 export default function SellerOffers() {
-  const navigate = useNavigate()
   const [offers, setOffers] = useState([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(null)
@@ -19,11 +17,8 @@ export default function SellerOffers() {
     setActing(offerId)
     try {
       const res = await offerAPI.update(offerId, { status: newStatus })
-      setMessage(newStatus === 'ACCEPTED' ? 'Offer accepted! Order created.' : 'Offer rejected.')
+      setMessage(newStatus === 'ACCEPTED' ? 'Offer accepted! The buyer has been notified to complete payment.' : 'Offer rejected.')
       fetchOffers()
-      if (newStatus === 'ACCEPTED' && res.data.order_id) {
-        setTimeout(() => navigate(`/checkout/${res.data.order_id}`), 1500)
-      }
     } catch (err) {
       setMessage(err.response?.data?.error || 'Action failed.')
     } finally { setActing(null) }
@@ -56,7 +51,7 @@ export default function SellerOffers() {
                 <tbody>
                   {offers.map(o => (
                     <tr key={o.id}>
-                      <td style={{ fontWeight: 600 }}>{o.listing}</td>
+                      <td style={{ fontWeight: 600 }}>{o.listing_title}</td>
                       <td>{o.buyer_username}</td>
                       <td style={{ color: 'var(--accent)', fontWeight: 700 }}>${o.offer_price}</td>
                       <td>

@@ -15,10 +15,14 @@ import EditListing from './pages/EditListing'
 import SellerDashboard from './pages/SellerDashboard'
 import SellerListings from './pages/SellerListings'
 import SellerOffers from './pages/SellerOffers'
+import SellerOrders from './pages/SellerOrders'
 import BuyerOrders from './pages/BuyerOrders'
 import BuyerFavorites from './pages/BuyerFavorites'
 import Checkout from './pages/Checkout'
 import Profile from './pages/Profile'
+import SellerProfile from './pages/SellerProfile'
+import Inbox from './pages/Inbox'
+import OrderDetail from './pages/OrderDetail'
 
 function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth()
@@ -45,10 +49,15 @@ function AppRoutes() {
         <Route path="/seller/listings/new" element={<ProtectedRoute role="seller"><CreateListing /></ProtectedRoute>} />
         <Route path="/seller/listings/:id/edit" element={<ProtectedRoute role="seller"><EditListing /></ProtectedRoute>} />
         <Route path="/seller/offers" element={<ProtectedRoute role="seller"><SellerOffers /></ProtectedRoute>} />
+        <Route path="/seller/orders" element={<ProtectedRoute role="seller"><SellerOrders /></ProtectedRoute>} />
         <Route path="/buyer/orders" element={<ProtectedRoute><BuyerOrders /></ProtectedRoute>} />
         <Route path="/buyer/favorites" element={<ProtectedRoute><BuyerFavorites /></ProtectedRoute>} />
         <Route path="/checkout/:orderId" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/sellers/:username" element={<SellerProfile />} />
+        <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
+        <Route path="/inbox/:partnerId" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
+        <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

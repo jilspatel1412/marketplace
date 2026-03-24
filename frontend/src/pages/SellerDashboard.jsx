@@ -41,15 +41,15 @@ export default function SellerDashboard() {
             <div className="widget-label">Total Revenue</div>
           </div>
           <div className="widget">
-            <div className="widget-value" style={{ color: 'var(--green)' }}>{revenue?.active_listings || 0}</div>
+            <div className="widget-value" style={{ color: '#4ade80' }}>{revenue?.active_listings || 0}</div>
             <div className="widget-label">Active Listings</div>
           </div>
           <div className="widget">
-            <div className="widget-value" style={{ color: 'var(--text2)' }}>{revenue?.sold_listings || 0}</div>
+            <div className="widget-value" style={{ color: '#94a3b8' }}>{revenue?.sold_listings || 0}</div>
             <div className="widget-label">Sold</div>
           </div>
           <div className="widget">
-            <div className="widget-value" style={{ color: 'var(--text3)' }}>{revenue?.draft_listings || 0}</div>
+            <div className="widget-value" style={{ color: '#64748b' }}>{revenue?.draft_listings || 0}</div>
             <div className="widget-label">Drafts</div>
           </div>
         </div>
@@ -63,8 +63,8 @@ export default function SellerDashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={weeklyData}>
-                  <XAxis dataKey="week" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
-                  <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} />
+                  <XAxis dataKey="week" tick={{ fill: '#636375', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#636375', fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8 }} />
                   <Bar dataKey="count" fill="var(--accent)" radius={[4,4,0,0]} />
                 </BarChart>
@@ -81,7 +81,7 @@ export default function SellerDashboard() {
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={keywordsData} layout="vertical">
                   <XAxis type="number" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
-                  <YAxis dataKey="name" type="category" width={80} tick={{ fill: 'var(--text2)', fontSize: 11 }} />
+                  <YAxis dataKey="name" type="category" width={80} tick={{ fill: '#36363f', fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8 }} />
                   <Bar dataKey="count" fill="var(--accent2)" radius={[0,4,4,0]} />
                 </BarChart>

@@ -8,31 +8,41 @@ export default function Listings() {
   const [listings, setListings] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [filters, setFilters] = useState({
     q: searchParams.get('q') || '',
     category: searchParams.get('category') || '',
     condition: searchParams.get('condition') || '',
     min_price: searchParams.get('min_price') || '',
     max_price: searchParams.get('max_price') || '',
+    sort: searchParams.get('sort') || 'newest',
   })
 
   useEffect(() => {
     categoryAPI.list().then(res => setCategories(res.data)).catch(() => {})
   }, [])
 
-  const fetchListings = useCallback(() => {
+  const fetchListings = useCallback((p = page) => {
     setLoading(true)
-    const params = {}
+    const params = { page: p }
     if (filters.q) params.q = filters.q
     if (filters.category) params.category = filters.category
     if (filters.condition) params.condition = filters.condition
     if (filters.min_price) params.min_price = filters.min_price
     if (filters.max_price) params.max_price = filters.max_price
+    if (filters.sort) params.sort = filters.sort
     listingAPI.list(params)
-      .then(res => setListings(res.data.results || res.data))
+      .then(res => {
+        const data = res.data
+        setListings(data.results || data)
+        setTotalPages(data.total_pages || 1)
+        setTotalCount(data.count || (data.results || data).length)
+      })
       .catch(() => setListings([]))
       .finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, page])
 
   useEffect(() => { fetchListings() }, [fetchListings])
 
@@ -45,7 +55,14 @@ export default function Listings() {
     if (filters.min_price) newParams.min_price = filters.min_price
     if (filters.max_price) newParams.max_price = filters.max_price
     setSearchParams(newParams)
-    fetchListings()
+    setPage(1)
+    fetchListings(1)
+  }
+
+  const handlePageChange = (p) => {
+    setPage(p)
+    fetchListings(p)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -53,7 +70,7 @@ export default function Listings() {
       <div className="container">
         <div className="page-header">
           <h1>Browse Listings</h1>
-          <p>{listings.length} items available</p>
+          <p>{totalCount} items available</p>
         </div>
 
         {/* Search + Filters */}
@@ -97,9 +114,19 @@ export default function Listings() {
               value={filters.max_price}
               onChange={e => setFilters({...filters, max_price: e.target.value})}
             />
+            <select
+              style={{ width: 160 }}
+              value={filters.sort}
+              onChange={e => setFilters({...filters, sort: e.target.value})}
+            >
+              <option value="newest">Newest First</option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
+              <option value="ending_soon">Ending Soon</option>
+            </select>
             <button className="btn btn-primary" type="submit">Search</button>
             <button className="btn btn-secondary" type="button" onClick={() => {
-              setFilters({ q: '', category: '', condition: '', min_price: '', max_price: '' })
+              setFilters({ q: '', category: '', condition: '', min_price: '', max_price: '', sort: 'newest' })
               setSearchParams({})
             }}>Clear</button>
           </div>
@@ -113,9 +140,29 @@ export default function Listings() {
             <p>Try adjusting your filters.</p>
           </div>
         ) : (
-          <div className="listings-grid">
-            {listings.map(l => <ListingCard key={l.id} listing={l} />)}
-          </div>
+          <>
+            <div className="listings-grid">
+              {listings.map(l => <ListingCard key={l.id} listing={l} />)}
+            </div>
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 40 }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => handlePageChange(page - 1)} disabled={page === 1}>← Prev</button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                  .reduce((acc, p, i, arr) => {
+                    if (i > 0 && p - arr[i - 1] > 1) acc.push('…')
+                    acc.push(p)
+                    return acc
+                  }, [])
+                  .map((p, i) => p === '…'
+                    ? <span key={`ellipsis-${i}`} style={{ color: 'var(--text3)', padding: '0 4px' }}>…</span>
+                    : <button key={p} className={`btn btn-sm ${p === page ? 'btn-primary' : 'btn-secondary'}`} onClick={() => handlePageChange(p)}>{p}</button>
+                  )
+                }
+                <button className="btn btn-secondary btn-sm" onClick={() => handlePageChange(page + 1)} disabled={page === totalPages}>Next →</button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
