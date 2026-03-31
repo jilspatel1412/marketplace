@@ -211,9 +211,24 @@ def stripe_webhook(request):
 
 # ─── Shipping Label ───────────────────────────────────────────────────────────
 
-def _build_full_address(user):
-    parts = [user.address_line1, user.city, user.state_province, user.postal_code, user.country]
-    return ', '.join(p for p in parts if p and p.strip())
+def _address_lines(user):
+    """Return a list of address lines, or a fallback message if nothing is set."""
+    lines = []
+    if user.address_line1 and user.address_line1.strip():
+        lines.append(user.address_line1.strip())
+    city_state = ', '.join(p for p in [user.city, user.state_province] if p and p.strip())
+    postal = user.postal_code.strip() if user.postal_code else ''
+    if city_state and postal:
+        lines.append(f'{city_state}  {postal}')
+    elif city_state:
+        lines.append(city_state)
+    elif postal:
+        lines.append(postal)
+    if user.country and user.country.strip():
+        lines.append(user.country.strip())
+    if not lines:
+        lines = ['[No address — update profile]']
+    return lines
 
 
 @api_view(['GET'])
@@ -265,10 +280,9 @@ def shipping_label(request, order_id):
     c.drawString(14 * mm, y, seller.username)
     y -= 5 * mm
     c.setFont('Helvetica', 9)
-    seller_addr = _build_full_address(seller)
-    if seller_addr:
-        c.drawString(14 * mm, y, seller_addr)
-        y -= 5 * mm
+    for addr_line in _address_lines(seller):
+        c.drawString(14 * mm, y, addr_line)
+        y -= 4.5 * mm
     c.drawString(14 * mm, y, seller.email)
 
     # Divider
@@ -287,11 +301,9 @@ def shipping_label(request, order_id):
     c.drawString(14 * mm, y, buyer.username)
     y -= 6 * mm
     c.setFont('Helvetica', 9)
-    buyer_addr = _build_full_address(buyer)
-    if buyer_addr:
-        for line in buyer_addr.split(', '):
-            c.drawString(14 * mm, y, line)
-            y -= 5 * mm
+    for addr_line in _address_lines(buyer):
+        c.drawString(14 * mm, y, addr_line)
+        y -= 4.5 * mm
     c.drawString(14 * mm, y, buyer.email)
 
     # Divider
