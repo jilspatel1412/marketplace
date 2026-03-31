@@ -6,33 +6,71 @@ export function VerifyEmail() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const [status, setStatus] = useState('verifying')
+  const [resendEmail, setResendEmail] = useState('')
+  const [resendMsg, setResendMsg] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
 
   useEffect(() => {
     const token = params.get('token')
-    if (!token) { setStatus('error'); return }
+    if (!token) { setStatus('no-token'); return }
     authAPI.verifyEmail(token)
       .then(() => setStatus('success'))
       .catch(() => setStatus('error'))
   }, [params])
 
+  const handleResend = async (e) => {
+    e.preventDefault()
+    setResendLoading(true)
+    try {
+      await authAPI.resendVerification(resendEmail)
+      setResendMsg('Sent! Check your inbox for a new verification link.')
+    } catch {
+      setResendMsg('Something went wrong. Please try again.')
+    } finally { setResendLoading(false) }
+  }
+
   return (
     <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', maxWidth: 400 }}>
+      <div style={{ textAlign: 'center', maxWidth: 420 }}>
         {status === 'verifying' && <><div className="spinner" /><p>Verifying your email...</p></>}
+
         {status === 'success' && (
           <>
             <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
             <h2>Email Verified!</h2>
-            <p style={{ color: 'var(--text2)', margin: '12px 0 24px' }}>Your account is now verified. You can log in.</p>
+            <p style={{ color: 'var(--text2)', margin: '12px 0 24px' }}>Your account is now active. You can log in.</p>
             <button className="btn btn-primary" onClick={() => navigate('/login')}>Go to Login</button>
           </>
         )}
-        {status === 'error' && (
+
+        {(status === 'error' || status === 'no-token') && (
           <>
             <div style={{ fontSize: '3rem', marginBottom: 16 }}>❌</div>
             <h2>Verification Failed</h2>
-            <p style={{ color: 'var(--text2)', margin: '12px 0 24px' }}>Invalid or expired link.</p>
-            <button className="btn btn-secondary" onClick={() => navigate('/register')}>Register Again</button>
+            <p style={{ color: 'var(--text2)', margin: '12px 0 24px' }}>
+              {status === 'no-token' ? 'No verification token found.' : 'This link is invalid or has already been used.'}
+            </p>
+            <div className="card card-body" style={{ textAlign: 'left', marginTop: 8 }}>
+              <p style={{ fontWeight: 600, marginBottom: 12 }}>Resend verification email</p>
+              {resendMsg ? (
+                <div className="alert alert-success">{resendMsg}</div>
+              ) : (
+                <form onSubmit={handleResend}>
+                  <div className="form-group">
+                    <label>Your email address</label>
+                    <input
+                      type="email" required
+                      value={resendEmail}
+                      onChange={e => setResendEmail(e.target.value)}
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                  <button className="btn btn-primary" type="submit" disabled={resendLoading} style={{ width: '100%' }}>
+                    {resendLoading ? 'Sending...' : 'Resend Link'}
+                  </button>
+                </form>
+              )}
+            </div>
           </>
         )}
       </div>

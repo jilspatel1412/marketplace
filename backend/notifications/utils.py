@@ -9,8 +9,8 @@ def create_notification(user, notif_type, title, message, link=''):
     )
 
 
-def send_email(recipient: str, subject: str, body: str) -> bool:
-    """Send an email and log it to EmailLog."""
+def send_email(recipient: str, subject: str, body: str, html: str = None) -> bool:
+    """Send an email (optionally HTML) and log it."""
     from .models import EmailLog
     try:
         send_mail(
@@ -19,9 +19,10 @@ def send_email(recipient: str, subject: str, body: str) -> bool:
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[recipient],
             fail_silently=False,
+            html_message=html,
         )
         EmailLog.objects.create(recipient=recipient, subject=subject, body=body, status='sent')
         return True
-    except Exception as e:
+    except Exception:
         EmailLog.objects.create(recipient=recipient, subject=subject, body=body, status='failed')
         return False

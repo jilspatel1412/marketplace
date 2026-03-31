@@ -33,22 +33,64 @@ class VerifiedTokenObtainPairView(TokenObtainPairView):
 User = get_user_model()
 
 
+def _send_verification_email(user):
+    verify_url = f"{settings.FRONTEND_URL}/verify-email?token={user.verification_token}"
+    send_email(
+        recipient=user.email,
+        subject='Verify your SellIt account',
+        body=f'Hi {user.username},\n\nVerify your email by visiting:\n{verify_url}\n\nSellIt Team',
+        html=f'''
+<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;border:1px solid #eee;border-radius:8px;overflow:hidden">
+  <div style="background:#e03d00;padding:24px;text-align:center">
+    <span style="color:#fff;font-size:26px;font-weight:800;letter-spacing:-1px">SellIt</span>
+  </div>
+  <div style="padding:32px">
+    <h2 style="margin:0 0 12px;color:#0c0c0e">Verify your email</h2>
+    <p style="color:#555;line-height:1.6;margin:0 0 28px">
+      Hi <strong>{user.username}</strong>,<br>
+      Click the button below to verify your email address and activate your account.
+    </p>
+    <div style="text-align:center;margin-bottom:28px">
+      <a href="{verify_url}"
+         style="background:#e03d00;color:#fff;padding:14px 36px;border-radius:8px;
+                text-decoration:none;font-weight:700;font-size:16px;display:inline-block">
+        Verify Email Address
+      </a>
+    </div>
+    <p style="color:#999;font-size:12px;margin:0">
+      Button not working? Copy and paste this link into your browser:<br>
+      <a href="{verify_url}" style="color:#e03d00;word-break:break-all">{verify_url}</a>
+    </p>
+  </div>
+</div>'''
+    )
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
-
-    # Send verification email
-    verify_url = f"{settings.FRONTEND_URL}/verify-email?token={user.verification_token}"
-    send_email(
-        recipient=user.email,
-        subject='Verify your SellIt account',
-        body=f'Hi {user.username},\n\nPlease verify your email:\n{verify_url}\n\nThanks,\nSellIt Team'
-    )
-
+    _send_verification_email(user)
     return Response({'message': 'Registration successful. Please check your email to verify your account.'}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_verification(request):
+    email = request.data.get('email', '').strip()
+    if not email:
+        return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        user = User.objects.get(email=email, is_verified=False)
+        if not user.verification_token:
+            user.verification_token = uuid.uuid4()
+            user.save()
+        _send_verification_email(user)
+    except User.DoesNotExist:
+        pass  # Don't reveal whether the email exists
+    return Response({'message': 'If that email is awaiting verification, a new link has been sent.'})
 
 
 @api_view(['GET'])
