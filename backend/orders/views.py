@@ -78,7 +78,7 @@ def create_payment_intent(request):
     try:
         intent = stripe.PaymentIntent.create(
             amount=amount_cents,
-            currency='usd',
+            currency='cad',
             metadata={'order_id': str(order.id)},
         )
     except stripe.error.StripeError:

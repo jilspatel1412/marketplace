@@ -6,7 +6,7 @@ export default function Register() {
   const navigate = useNavigate()
   const [form, setForm] = useState({
     username: '', email: '', phone_number: '', password: '', password2: '', role: 'buyer',
-    address_line1: '', city: '', state_province: '', postal_code: '', country: '',
+    address_line1: '', city: '', state_province: '', postal_code: '', country: 'Canada',
   })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -94,28 +94,28 @@ export default function Register() {
 
               <div className="form-group">
                 <label>Address Line 1</label>
-                <input value={form.address_line1} onChange={set('address_line1')} required placeholder="123 Main Street, Apt 4" />
+                <input value={form.address_line1} onChange={set('address_line1')} required placeholder="123 Main Street, Unit 4" />
               </div>
 
               <div className="form-row">
                 <div className="form-group">
                   <label>City</label>
-                  <input value={form.city} onChange={set('city')} required placeholder="New York" />
+                  <input value={form.city} onChange={set('city')} required placeholder="Toronto" />
                 </div>
                 <div className="form-group">
-                  <label>State / Province</label>
-                  <input value={form.state_province} onChange={set('state_province')} required placeholder="NY" />
+                  <label>Province</label>
+                  <input value={form.state_province} onChange={set('state_province')} required placeholder="Ontario" />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
                   <label>Postal Code</label>
-                  <input value={form.postal_code} onChange={set('postal_code')} required placeholder="10001" />
+                  <input value={form.postal_code} onChange={set('postal_code')} required placeholder="M5V 3A8" />
                 </div>
                 <div className="form-group">
                   <label>Country</label>
-                  <input value={form.country} onChange={set('country')} required placeholder="United States" />
+                  <input value={form.country} onChange={set('country')} required placeholder="Canada" />
                 </div>
               </div>
 

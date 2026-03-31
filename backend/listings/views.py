@@ -284,7 +284,7 @@ def offer_update(request, offer_id):
                 try:
                     intent = stripe.PaymentIntent.create(
                         amount=amount_cents,
-                        currency='usd',
+                        currency='cad',
                         metadata={'order_id': str(order.id)},
                     )
                     Payment.objects.create(
@@ -528,7 +528,7 @@ def buy_now(request, pk):
             try:
                 intent = stripe.PaymentIntent.create(
                     amount=int(listing.price * 100),
-                    currency='usd',
+                    currency='cad',
                     metadata={'order_id': str(order.id)},
                 )
                 from orders.models import Payment as PaymentModel
@@ -589,7 +589,7 @@ def accept_auction_bid(request, pk):
             try:
                 intent = stripe.PaymentIntent.create(
                     amount=int(top_bid.amount * 100),
-                    currency='usd',
+                    currency='cad',
                     metadata={'order_id': str(order.id)},
                 )
                 from orders.models import Payment as PaymentModel

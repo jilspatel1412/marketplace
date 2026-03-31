@@ -92,28 +92,28 @@ export default function Profile() {
 
             <div className="form-group">
               <label>Address Line 1</label>
-              <input value={form.address_line1} onChange={set('address_line1')} placeholder="123 Main Street, Apt 4" />
+              <input value={form.address_line1} onChange={set('address_line1')} placeholder="123 Main Street, Unit 4" />
             </div>
 
             <div className="form-row">
               <div className="form-group">
                 <label>City</label>
-                <input value={form.city} onChange={set('city')} placeholder="New York" />
+                <input value={form.city} onChange={set('city')} placeholder="Toronto" />
               </div>
               <div className="form-group">
-                <label>State / Province</label>
-                <input value={form.state_province} onChange={set('state_province')} placeholder="NY" />
+                <label>Province</label>
+                <input value={form.state_province} onChange={set('state_province')} placeholder="Ontario" />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
                 <label>Postal Code</label>
-                <input value={form.postal_code} onChange={set('postal_code')} placeholder="10001" />
+                <input value={form.postal_code} onChange={set('postal_code')} placeholder="M5V 3A8" />
               </div>
               <div className="form-group">
                 <label>Country</label>
-                <input value={form.country} onChange={set('country')} placeholder="United States" />
+                <input value={form.country} onChange={set('country')} placeholder="Canada" />
               </div>
             </div>
 
