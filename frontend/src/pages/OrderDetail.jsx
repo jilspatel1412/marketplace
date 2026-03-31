@@ -30,7 +30,7 @@ export default function OrderDetail() {
   useEffect(() => {
     orderAPI.get(id)
       .then(r => setOrder(r.data))
-      .catch(() => navigate('/buyer/orders'))
+      .catch(() => navigate(user?.role === 'seller' ? '/seller/orders' : '/buyer/orders'))
       .finally(() => setLoading(false))
   }, [id])
 

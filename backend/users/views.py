@@ -1,18 +1,34 @@
 import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from rest_framework import status, generics
+from rest_framework import serializers as drf_serializers, status, generics
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from notifications.utils import send_email
 from .serializers import (
     RegisterSerializer, UserSerializer, UserUpdateSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 )
+
+
+class VerifiedTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if not self.user.is_verified and not self.user.is_staff:
+            raise drf_serializers.ValidationError(
+                {'detail': 'Please verify your email before logging in.'}
+            )
+        return data
+
+
+class VerifiedTokenObtainPairView(TokenObtainPairView):
+    serializer_class = VerifiedTokenObtainPairSerializer
 
 User = get_user_model()
 

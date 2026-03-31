@@ -501,12 +501,18 @@ def buy_now(request, pk):
 
     if listing.seller == request.user:
         return Response({'error': 'You cannot buy your own listing.'}, status=status.HTTP_400_BAD_REQUEST)
-    if listing.status != 'active':
-        return Response({'error': 'Listing is not available.'}, status=status.HTTP_400_BAD_REQUEST)
     if listing.is_auction:
         return Response({'error': 'Use bidding for auction listings.'}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
+        # Re-fetch with lock to prevent two buyers purchasing the same listing simultaneously
+        listing = Listing.objects.select_for_update().get(pk=pk)
+        if listing.status != 'active':
+            return Response({'error': 'Listing is no longer available.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        listing.status = 'sold'
+        listing.save()
+
         order = Order.objects.create(
             listing=listing,
             buyer=request.user,
