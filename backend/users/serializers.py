@@ -59,14 +59,8 @@ class UserSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('username', 'bio', 'avatar', 'role', 'phone_number',
+        fields = ('username', 'bio', 'avatar', 'phone_number',
                   'address_line1', 'city', 'state_province', 'postal_code', 'country')
-
-    def validate_role(self, value):
-        allowed = ['buyer', 'seller']
-        if value not in allowed:
-            raise serializers.ValidationError('You can only set role to buyer or seller.')
-        return value
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
