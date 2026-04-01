@@ -243,94 +243,142 @@ def shipping_label(request, order_id):
         return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
 
     buf = io.BytesIO()
-    w, h = A6  # 105mm x 148mm
-    c = rl_canvas.Canvas(buf, pagesize=A6)
+    # Standard 4×6 inch shipping label (101.6mm × 152.4mm)
+    W = 101.6 * mm
+    H = 152.4 * mm
+    c = rl_canvas.Canvas(buf, pagesize=(W, H))
 
-    # Outer border
-    c.setStrokeColor(colors.HexColor('#0c0c0e'))
-    c.setLineWidth(2)
-    c.rect(8 * mm, 8 * mm, w - 16 * mm, h - 16 * mm)
-
-    # Header bar
-    c.setFillColor(colors.HexColor('#e03d00'))
-    c.rect(8 * mm, h - 28 * mm, w - 16 * mm, 20 * mm, fill=1, stroke=0)
-    c.setFillColor(colors.white)
-    c.setFont('Helvetica-Bold', 14)
-    c.drawString(14 * mm, h - 20 * mm, 'SELLIT')
-    c.setFont('Helvetica', 8)
-    c.drawRightString(w - 14 * mm, h - 20 * mm, f'ORDER #{order.id}')
-
-    # Divider
-    c.setStrokeColor(colors.HexColor('#dcdce8'))
-    c.setLineWidth(0.5)
-    c.line(8 * mm, h - 30 * mm, w - 8 * mm, h - 30 * mm)
+    BLACK   = colors.HexColor('#000000')
+    WHITE   = colors.white
+    ORANGE  = colors.HexColor('#e03d00')
+    GREY    = colors.HexColor('#555555')
+    LTGREY  = colors.HexColor('#cccccc')
 
     seller = order.seller
-    buyer = order.buyer
+    buyer  = order.buyer
     item_title = order.listing.title if order.listing else f'Order #{order.id}'
+    date_str   = order.created_at.strftime('%b %d, %Y')
 
-    # FROM section
-    y = h - 40 * mm
-    c.setFillColor(colors.HexColor('#9898a8'))
+    # ── Outer border ──────────────────────────────────────────────────
+    c.setStrokeColor(BLACK)
+    c.setLineWidth(1.5)
+    c.rect(3 * mm, 3 * mm, W - 6 * mm, H - 6 * mm, stroke=1, fill=0)
+
+    # ── Header bar ────────────────────────────────────────────────────
+    header_h = 14 * mm
+    c.setFillColor(BLACK)
+    c.rect(3 * mm, H - 3 * mm - header_h, W - 6 * mm, header_h, fill=1, stroke=0)
+
+    # "SellIt" in orange inside black header
+    c.setFillColor(ORANGE)
+    c.setFont('Helvetica-Bold', 16)
+    c.drawString(7 * mm, H - 3 * mm - header_h + 4 * mm, 'SellIt')
+
+    # Service + date right-aligned
+    c.setFillColor(WHITE)
     c.setFont('Helvetica-Bold', 7)
-    c.drawString(14 * mm, y, 'FROM')
-    y -= 5 * mm
-    c.setFillColor(colors.HexColor('#0c0c0e'))
-    c.setFont('Helvetica-Bold', 10)
-    c.drawString(14 * mm, y, seller.username)
-    y -= 5 * mm
-    c.setFont('Helvetica', 9)
-    for addr_line in _address_lines(seller):
-        c.drawString(14 * mm, y, addr_line)
-        y -= 4.5 * mm
-    c.drawString(14 * mm, y, seller.email)
-
-    # Divider
-    y -= 6 * mm
-    c.setStrokeColor(colors.HexColor('#dcdce8'))
-    c.line(8 * mm, y, w - 8 * mm, y)
-
-    # TO section
-    y -= 8 * mm
-    c.setFillColor(colors.HexColor('#9898a8'))
-    c.setFont('Helvetica-Bold', 7)
-    c.drawString(14 * mm, y, 'TO')
-    y -= 5 * mm
-    c.setFillColor(colors.HexColor('#0c0c0e'))
-    c.setFont('Helvetica-Bold', 12)
-    c.drawString(14 * mm, y, buyer.username)
-    y -= 6 * mm
-    c.setFont('Helvetica', 9)
-    for addr_line in _address_lines(buyer):
-        c.drawString(14 * mm, y, addr_line)
-        y -= 4.5 * mm
-    c.drawString(14 * mm, y, buyer.email)
-
-    # Divider
-    y -= 6 * mm
-    c.setStrokeColor(colors.HexColor('#dcdce8'))
-    c.line(8 * mm, y, w - 8 * mm, y)
-
-    # Item
-    y -= 7 * mm
-    c.setFillColor(colors.HexColor('#9898a8'))
-    c.setFont('Helvetica-Bold', 7)
-    c.drawString(14 * mm, y, 'ITEM')
-    y -= 5 * mm
-    c.setFillColor(colors.HexColor('#0c0c0e'))
-    c.setFont('Helvetica', 9)
-    # Truncate long titles
-    title = item_title[:48] + ('…' if len(item_title) > 48 else '')
-    c.drawString(14 * mm, y, title)
-    y -= 5 * mm
-    c.setFont('Helvetica-Bold', 9)
-    c.setFillColor(colors.HexColor('#e03d00'))
-    c.drawString(14 * mm, y, f'Amount: ${order.total_amount}')
-
-    # Footer
-    c.setFillColor(colors.HexColor('#9898a8'))
+    c.drawRightString(W - 7 * mm, H - 3 * mm - header_h + 8 * mm, 'STANDARD SHIPPING')
     c.setFont('Helvetica', 7)
-    c.drawCentredString(w / 2, 12 * mm, f'SellIt — sellit.com  |  {order.created_at.strftime("%b %d, %Y")}')
+    c.drawRightString(W - 7 * mm, H - 3 * mm - header_h + 3.5 * mm, date_str)
+
+    # ── FROM section ──────────────────────────────────────────────────
+    y = H - 3 * mm - header_h - 5 * mm
+
+    c.setFillColor(GREY)
+    c.setFont('Helvetica-Bold', 6.5)
+    c.drawString(7 * mm, y, 'FROM:')
+    y -= 4.5 * mm
+
+    c.setFillColor(BLACK)
+    c.setFont('Helvetica-Bold', 8)
+    c.drawString(7 * mm, y, seller.username)
+    y -= 4 * mm
+
+    c.setFont('Helvetica', 7.5)
+    for line in _address_lines(seller):
+        c.drawString(7 * mm, y, line)
+        y -= 3.8 * mm
+    c.setFillColor(GREY)
+    c.drawString(7 * mm, y, seller.email)
+    y -= 3 * mm
+
+    # ── Thick divider ─────────────────────────────────────────────────
+    c.setStrokeColor(BLACK)
+    c.setLineWidth(2)
+    c.line(3 * mm, y, W - 3 * mm, y)
+    y -= 6 * mm
+
+    # ── SHIP TO label ─────────────────────────────────────────────────
+    c.setFillColor(GREY)
+    c.setFont('Helvetica-Bold', 7)
+    c.drawString(7 * mm, y, 'SHIP TO:')
+    y -= 6 * mm
+
+    # Buyer name – large
+    c.setFillColor(BLACK)
+    c.setFont('Helvetica-Bold', 15)
+    c.drawString(7 * mm, y, buyer.username.upper())
+    y -= 7 * mm
+
+    # Buyer address lines – medium
+    buyer_lines = _address_lines(buyer)
+    # Separate postal code for the box (last word of city-province-postal line)
+    postal_code = (buyer.postal_code or '').strip().upper()
+
+    c.setFont('Helvetica', 10)
+    for line in buyer_lines:
+        c.drawString(7 * mm, y, line)
+        y -= 5.5 * mm
+
+    # ── Postal code box (Canada Post style) ───────────────────────────
+    if postal_code:
+        y -= 3 * mm
+        box_w, box_h = 35 * mm, 18 * mm
+        box_x = W - 7 * mm - box_w
+        box_y = y - box_h
+        c.setStrokeColor(BLACK)
+        c.setLineWidth(1.5)
+        c.rect(box_x, box_y, box_w, box_h, stroke=1, fill=0)
+        c.setFont('Helvetica-Bold', 14)
+        c.drawCentredString(box_x + box_w / 2, box_y + 5 * mm, postal_code)
+        c.setFont('Helvetica', 5.5)
+        c.setFillColor(GREY)
+        c.drawCentredString(box_x + box_w / 2, box_y + 2 * mm, 'POSTAL CODE / CODE POSTAL')
+        y = box_y - 4 * mm
+    else:
+        y -= 6 * mm
+
+    # ── Divider ───────────────────────────────────────────────────────
+    c.setStrokeColor(LTGREY)
+    c.setLineWidth(0.5)
+    c.line(3 * mm, y, W - 3 * mm, y)
+    y -= 5 * mm
+
+    # ── Item + amount ─────────────────────────────────────────────────
+    c.setFillColor(GREY)
+    c.setFont('Helvetica-Bold', 6.5)
+    c.drawString(7 * mm, y, 'ITEM:')
+    y -= 4 * mm
+
+    c.setFillColor(BLACK)
+    c.setFont('Helvetica', 8)
+    title = item_title[:52] + ('...' if len(item_title) > 52 else '')
+    c.drawString(7 * mm, y, title)
+    y -= 4.5 * mm
+
+    c.setFont('Helvetica-Bold', 8)
+    c.setFillColor(ORANGE)
+    c.drawString(7 * mm, y, f'Amount: CAD ${order.total_amount}')
+    c.setFillColor(BLACK)
+    c.drawRightString(W - 7 * mm, y, f'Order #{order.id}')
+
+    # ── Footer bar ────────────────────────────────────────────────────
+    footer_h = 7 * mm
+    c.setFillColor(colors.HexColor('#f0f0f0'))
+    c.rect(3 * mm, 3 * mm, W - 6 * mm, footer_h, fill=1, stroke=0)
+    c.setFillColor(GREY)
+    c.setFont('Helvetica', 6)
+    c.drawCentredString(W / 2, 3 * mm + 2.5 * mm, 'SellIt Marketplace  —  sellit.com  |  Keep this label for your records')
 
     c.save()
     buf.seek(0)
