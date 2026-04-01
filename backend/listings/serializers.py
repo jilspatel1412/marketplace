@@ -31,6 +31,7 @@ class ListingSerializer(serializers.ModelSerializer):
     category_detail = CategorySerializer(source='category', read_only=True)
     seller_info = serializers.SerializerMethodField()
     bid_count = serializers.SerializerMethodField()
+    watcher_count = serializers.SerializerMethodField()
     is_auction = serializers.BooleanField(read_only=True)
     is_favorited = serializers.SerializerMethodField()
 
@@ -40,7 +41,7 @@ class ListingSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'category', 'category_detail',
             'condition', 'price', 'is_negotiable', 'status',
             'auction_end_time', 'current_bid', 'is_auction',
-            'images', 'seller_info', 'bid_count', 'is_favorited', 'created_at', 'updated_at'
+            'images', 'seller_info', 'bid_count', 'watcher_count', 'is_favorited', 'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'seller_info', 'created_at', 'updated_at', 'current_bid')
 
@@ -53,12 +54,16 @@ class ListingSerializer(serializers.ModelSerializer):
             'id': obj.seller.id,
             'username': obj.seller.username,
             'is_verified': obj.seller.is_verified,
+            'is_verified_seller': obj.seller.is_verified_seller,
             'avg_rating': round(stats['avg'], 1) if stats['avg'] else None,
             'review_count': stats['count'],
         }
 
     def get_bid_count(self, obj):
         return obj.bids.count()
+
+    def get_watcher_count(self, obj):
+        return UserInteraction.objects.filter(listing=obj, interaction_type='favorite').count()
 
     def get_is_favorited(self, obj):
         request = self.context.get('request')

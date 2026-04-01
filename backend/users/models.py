@@ -20,6 +20,7 @@ class User(AbstractUser):
     state_province = models.CharField(max_length=100, blank=True, default='')
     postal_code = models.CharField(max_length=20, blank=True, default='')
     country = models.CharField(max_length=100, blank=True, default='')
+    is_verified_seller = models.BooleanField(default=False)
     verification_token = models.UUIDField(default=uuid.uuid4, unique=True, null=True, blank=True)
     password_reset_token = models.UUIDField(null=True, blank=True)
 

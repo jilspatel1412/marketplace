@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Order, Payment, Receipt, Review
+from .models import Order, Payment, Receipt, Review, Dispute
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -21,6 +21,18 @@ class ReviewSerializer(serializers.ModelSerializer):
         model = Review
         fields = ('id', 'order', 'reviewer', 'reviewer_username', 'seller', 'rating', 'comment', 'created_at')
         read_only_fields = ('id', 'created_at', 'reviewer', 'seller', 'order')
+
+
+class DisputeSerializer(serializers.ModelSerializer):
+    opened_by_username = serializers.CharField(source='opened_by.username', read_only=True)
+    order_listing = serializers.CharField(source='order.listing.title', read_only=True)
+
+    class Meta:
+        model = Dispute
+        fields = ('id', 'order', 'order_listing', 'opened_by', 'opened_by_username',
+                  'reason', 'description', 'status', 'resolution', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'opened_by', 'status', 'resolution', 'created_at', 'updated_at',
+                            'opened_by_username', 'order_listing')
 
 
 class OrderSerializer(serializers.ModelSerializer):

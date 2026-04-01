@@ -13,6 +13,11 @@ class Notification(models.Model):
         ('order_shipped', 'Order Shipped'),
         ('order_delivered', 'Order Delivered'),
         ('new_bid', 'New Bid'),
+        ('price_drop', 'Price Drop'),
+        ('review_received', 'Review Received'),
+        ('dispute_opened', 'Dispute Opened'),
+        ('dispute_resolved', 'Dispute Resolved'),
+        ('search_alert', 'Search Alert'),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

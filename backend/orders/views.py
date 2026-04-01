@@ -17,8 +17,8 @@ from reportlab.lib import colors
 from reportlab.pdfgen import canvas as rl_canvas
 
 from notifications.utils import send_email, create_notification
-from .models import Order, Payment, Receipt, Review
-from .serializers import OrderSerializer, ReviewSerializer
+from .models import Order, Payment, Receipt, Review, Dispute
+from .serializers import OrderSerializer, ReviewSerializer, DisputeSerializer
 
 
 @api_view(['GET'])
@@ -508,3 +508,95 @@ def seller_reviews(request, seller_id):
         'average_rating': round(avg, 1) if avg else None,
         'count': reviews.count(),
     })
+
+
+# ─── Disputes ─────────────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def dispute_list_create(request):
+    if request.method == 'GET':
+        disputes = Dispute.objects.filter(
+            models.Q(order__buyer=request.user) | models.Q(order__seller=request.user)
+        ).select_related('order__listing', 'opened_by')
+        return Response(DisputeSerializer(disputes, many=True).data)
+
+    # POST: open a dispute
+    order_id = request.data.get('order')
+    if not order_id:
+        return Response({'error': 'order is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        order = Order.objects.get(pk=order_id)
+    except Order.DoesNotExist:
+        return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.user not in (order.buyer, order.seller):
+        return Response({'error': 'You are not party to this order.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if order.status not in ('paid', 'shipped', 'delivered'):
+        return Response({'error': 'Can only dispute paid or shipped orders.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if Dispute.objects.filter(order=order, status__in=('open', 'under_review')).exists():
+        return Response({'error': 'An active dispute already exists for this order.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = DisputeSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    dispute = serializer.save(order=order, opened_by=request.user)
+
+    # Notify the other party
+    other_party = order.seller if request.user == order.buyer else order.buyer
+    create_notification(
+        other_party, 'dispute_opened',
+        f'Dispute opened on Order #{order.id}',
+        f'{request.user.username} opened a dispute: {dispute.reason}.',
+        '/buyer/orders' if other_party == order.buyer else '/seller/orders'
+    )
+    return Response(DisputeSerializer(dispute).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def dispute_detail(request, dispute_id):
+    try:
+        dispute = Dispute.objects.select_related('order__buyer', 'order__seller', 'order__listing', 'opened_by').get(pk=dispute_id)
+    except Dispute.DoesNotExist:
+        return Response({'error': 'Dispute not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    order = dispute.order
+    if request.user not in (order.buyer, order.seller) and not request.user.is_staff:
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        return Response(DisputeSerializer(dispute).data)
+
+    # PATCH: admin/staff resolves, or parties can close
+    new_status = request.data.get('status')
+    resolution = request.data.get('resolution', '').strip()
+
+    allowed_transitions = []
+    if request.user.is_staff or request.user.role == 'admin':
+        allowed_transitions = ['under_review', 'resolved_refund', 'resolved_no_refund', 'closed']
+    elif request.user in (order.buyer, order.seller):
+        allowed_transitions = ['closed']
+
+    if new_status not in allowed_transitions:
+        return Response({'error': f'You cannot set status to "{new_status}".'}, status=status.HTTP_403_FORBIDDEN)
+
+    dispute.status = new_status
+    if resolution:
+        dispute.resolution = resolution
+    dispute.save()
+
+    # Notify both parties on resolution
+    if new_status in ('resolved_refund', 'resolved_no_refund', 'closed'):
+        for party in (order.buyer, order.seller):
+            if party != request.user:
+                create_notification(
+                    party, 'dispute_resolved',
+                    f'Dispute #{dispute.id} resolved',
+                    f'Status: {dispute.get_status_display()}.' + (f' Resolution: {resolution}' if resolution else ''),
+                    '/buyer/orders' if party == order.buyer else '/seller/orders'
+                )
+
+    return Response(DisputeSerializer(dispute).data)

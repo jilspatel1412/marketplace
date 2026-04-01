@@ -104,6 +104,22 @@ export const orderAPI = {
   sellerReviews: (sellerId) => api.get(`/api/orders/seller/${sellerId}/reviews/`),
 }
 
+// ─── Disputes ──────────────────────────────────────────────────────────────
+export const disputeAPI = {
+  list: () => api.get('/api/orders/disputes/'),
+  create: (data) => api.post('/api/orders/disputes/', data),
+  get: (id) => api.get(`/api/orders/disputes/${id}/`),
+  update: (id, data) => api.patch(`/api/orders/disputes/${id}/`, data),
+}
+
+// ─── Search Alerts ─────────────────────────────────────────────────────────
+export const searchAlertAPI = {
+  list: () => api.get('/api/listings/search-alerts/'),
+  create: (data) => api.post('/api/listings/search-alerts/', data),
+  delete: (id) => api.delete(`/api/listings/search-alerts/${id}/`),
+  toggle: (id, isActive) => api.patch(`/api/listings/search-alerts/${id}/`, { is_active: isActive }),
+}
+
 // ─── Users ─────────────────────────────────────────────────────────────────
 export const userAPI = {
   sellerProfile: (username) => api.get(`/api/auth/sellers/${username}/`),

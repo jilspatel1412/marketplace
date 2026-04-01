@@ -8,4 +8,6 @@ urlpatterns = [
     path('<int:order_id>/status/', views.update_order_status, name='update_order_status'),
     path('<int:order_id>/review/', views.create_review, name='create_review'),
     path('seller/<int:seller_id>/reviews/', views.seller_reviews, name='seller_reviews'),
+    path('disputes/', views.dispute_list_create, name='dispute_list_create'),
+    path('disputes/<int:dispute_id>/', views.dispute_detail, name='dispute_detail'),
 ]

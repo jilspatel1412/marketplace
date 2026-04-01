@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { listingAPI, categoryAPI } from '../api'
+import { listingAPI, categoryAPI, searchAlertAPI } from '../api'
+import { useAuth } from '../context/AuthContext'
 import ListingCard from '../components/ListingCard'
 
 export default function Listings() {
@@ -18,7 +19,11 @@ export default function Listings() {
     min_price: searchParams.get('min_price') || '',
     max_price: searchParams.get('max_price') || '',
     sort: searchParams.get('sort') || 'newest',
+    listing_type: searchParams.get('listing_type') || '',
   })
+  const [saveAlertMsg, setSaveAlertMsg] = useState('')
+  const [savingAlert, setSavingAlert] = useState(false)
+  const { user } = useAuth()
 
   useEffect(() => {
     categoryAPI.list().then(res => setCategories(res.data)).catch(() => {})
@@ -33,6 +38,7 @@ export default function Listings() {
     if (filters.min_price) params.min_price = filters.min_price
     if (filters.max_price) params.max_price = filters.max_price
     if (filters.sort) params.sort = filters.sort
+    if (filters.listing_type) params.listing_type = filters.listing_type
     listingAPI.list(params)
       .then(res => {
         const data = res.data
@@ -54,6 +60,7 @@ export default function Listings() {
     if (filters.condition) newParams.condition = filters.condition
     if (filters.min_price) newParams.min_price = filters.min_price
     if (filters.max_price) newParams.max_price = filters.max_price
+    if (filters.listing_type) newParams.listing_type = filters.listing_type
     setSearchParams(newParams)
     setPage(1)
     fetchListings(1)
@@ -65,6 +72,37 @@ export default function Listings() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const handleSaveAlert = async () => {
+    if (!user) { setSaveAlertMsg('Log in to save search alerts.'); return }
+    setSavingAlert(true)
+    setSaveAlertMsg('')
+    const parts = []
+    if (filters.q) parts.push(filters.q)
+    if (filters.category) {
+      const cat = categories.find(c => c.slug === filters.category)
+      if (cat) parts.push(cat.name)
+    }
+    if (filters.listing_type) parts.push(filters.listing_type)
+    const label = parts.join(' · ') || 'All listings'
+
+    const catObj = categories.find(c => c.slug === filters.category)
+    try {
+      await searchAlertAPI.create({
+        label,
+        query: filters.q,
+        category: catObj?.id || '',
+        condition: filters.condition,
+        max_price: filters.max_price || '',
+      })
+      setSaveAlertMsg('Alert saved! We will notify you when new matches are listed.')
+    } catch (err) {
+      setSaveAlertMsg(err.response?.data?.error || 'Could not save alert.')
+    } finally { setSavingAlert(false) }
+  }
+
+  const hasActiveFilters = filters.q || filters.category || filters.condition ||
+    filters.min_price || filters.max_price || filters.listing_type
+
   return (
     <div className="page">
       <div className="container">
@@ -74,7 +112,7 @@ export default function Listings() {
         </div>
 
         {/* Search + Filters */}
-        <form onSubmit={handleSearch} style={{ marginBottom: 32 }}>
+        <form onSubmit={handleSearch} style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
             <input
               style={{ flex: '1 1 240px' }}
@@ -100,8 +138,17 @@ export default function Listings() {
               <option value="used">Used</option>
               <option value="refurbished">Refurbished</option>
             </select>
+            <select
+              style={{ width: 140 }}
+              value={filters.listing_type}
+              onChange={e => setFilters({...filters, listing_type: e.target.value})}
+            >
+              <option value="">All Types</option>
+              <option value="fixed">Fixed Price</option>
+              <option value="auction">Auction</option>
+            </select>
           </div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <input
               style={{ width: 130 }}
               type="number" placeholder="Min price"
@@ -126,11 +173,31 @@ export default function Listings() {
             </select>
             <button className="btn btn-primary" type="submit">Search</button>
             <button className="btn btn-secondary" type="button" onClick={() => {
-              setFilters({ q: '', category: '', condition: '', min_price: '', max_price: '', sort: 'newest' })
+              setFilters({ q: '', category: '', condition: '', min_price: '', max_price: '', sort: 'newest', listing_type: '' })
               setSearchParams({})
+              setSaveAlertMsg('')
             }}>Clear</button>
           </div>
         </form>
+
+        {/* Save Search Alert */}
+        {hasActiveFilters && (
+          <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleSaveAlert}
+              disabled={savingAlert}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              🔔 {savingAlert ? 'Saving...' : 'Save this search'}
+            </button>
+            {saveAlertMsg && (
+              <span style={{ fontSize: '0.82rem', color: saveAlertMsg.includes('saved') ? 'var(--green)' : 'var(--red)' }}>
+                {saveAlertMsg}
+              </span>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="spinner" />

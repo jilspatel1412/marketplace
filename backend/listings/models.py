@@ -146,6 +146,24 @@ class ListingReport(models.Model):
         return f'{self.reporter.username} reported {self.listing.title}'
 
 
+class SearchAlert(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='search_alerts')
+    label = models.CharField(max_length=200)
+    query = models.CharField(max_length=200, blank=True, default='')
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+    condition = models.CharField(max_length=15, blank=True, default='')
+    max_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'search_alerts'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Alert "{self.label}" for {self.user.username}'
+
+
 class UserInteraction(models.Model):
     INTERACTION_CHOICES = [
         ('view', 'View'),

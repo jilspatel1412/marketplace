@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { orderAPI } from '../api'
+import { orderAPI, disputeAPI } from '../api'
 import api from '../api'
 
 async function downloadShippingLabel(orderId) {
@@ -72,11 +72,71 @@ function ReviewModal({ order, onClose, onSubmit }) {
   )
 }
 
+const DISPUTE_REASONS = [
+  { value: 'item_not_received', label: 'Item Not Received' },
+  { value: 'item_not_as_described', label: 'Item Not as Described' },
+  { value: 'damaged', label: 'Item Arrived Damaged' },
+  { value: 'wrong_item', label: 'Wrong Item Sent' },
+  { value: 'other', label: 'Other' },
+]
+
+function DisputeModal({ order, onClose, onSubmit }) {
+  const [reason, setReason] = useState('item_not_received')
+  const [description, setDescription] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!description.trim()) { setError('Please describe the issue.'); return }
+    setLoading(true); setError('')
+    try {
+      await disputeAPI.create({ order: order.id, reason, description })
+      onSubmit()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not open dispute.')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">Open a Dispute</div>
+        <p style={{ color: 'var(--text2)', fontSize: '0.9rem', marginBottom: 16 }}>
+          Order #{order.id} — <strong>{order.listing_title}</strong>
+        </p>
+        {error && <div className="alert alert-error">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Reason</label>
+            <select value={reason} onChange={e => setReason(e.target.value)}>
+              {DISPUTE_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Describe the issue *</label>
+            <textarea rows={4} value={description} onChange={e => setDescription(e.target.value)}
+              placeholder="Explain what happened in detail..." required />
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-danger" disabled={loading}>
+              {loading ? 'Submitting...' : 'Open Dispute'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function BuyerOrders() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [reviewOrder, setReviewOrder] = useState(null)
+  const [disputeOrder, setDisputeOrder] = useState(null)
+  const [disputeMsg, setDisputeMsg] = useState('')
 
   const load = () => orderAPI.list().then(res => setOrders(res.data)).finally(() => setLoading(false))
   useEffect(() => { load() }, [])
@@ -101,8 +161,13 @@ export default function BuyerOrders() {
   return (
     <div className="page">
       <div className="container">
-        <div className="page-header">
-          <h1>My Orders</h1>
+        <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1>My Orders</h1>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/disputes')}>
+            View Disputes
+          </button>
         </div>
 
         {reviewOrder && (
@@ -111,6 +176,22 @@ export default function BuyerOrders() {
             onClose={() => setReviewOrder(null)}
             onSubmit={() => { setReviewOrder(null); load() }}
           />
+        )}
+        {disputeOrder && (
+          <DisputeModal
+            order={disputeOrder}
+            onClose={() => setDisputeOrder(null)}
+            onSubmit={() => {
+              setDisputeOrder(null)
+              setDisputeMsg('Dispute opened. Our team will review it shortly.')
+            }}
+          />
+        )}
+        {disputeMsg && (
+          <div className="alert alert-success" style={{ marginBottom: 20 }}>
+            {disputeMsg}
+            <button onClick={() => setDisputeMsg('')} style={{ marginLeft: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>✕</button>
+          </div>
         )}
 
         {loading ? <div className="spinner" /> : orders.length === 0 ? (
@@ -165,6 +246,15 @@ export default function BuyerOrders() {
                           )}
                           {o.has_review && (
                             <span style={{ fontSize: '0.78rem', color: 'var(--green)' }}>✓ Reviewed</span>
+                          )}
+                          {['paid', 'shipped', 'delivered'].includes(o.status) && (
+                            <button
+                              className="btn btn-sm"
+                              style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', fontSize: '0.75rem' }}
+                              onClick={() => setDisputeOrder(o)}
+                            >
+                              Dispute
+                            </button>
                           )}
                         </div>
                       </td>

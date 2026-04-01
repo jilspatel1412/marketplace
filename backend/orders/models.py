@@ -64,6 +64,39 @@ class Review(models.Model):
         return f'Review {self.rating}★ by {self.reviewer.username} for {self.seller.username}'
 
 
+class Dispute(models.Model):
+    REASON_CHOICES = [
+        ('item_not_received', 'Item Not Received'),
+        ('item_not_as_described', 'Item Not as Described'),
+        ('damaged', 'Item Arrived Damaged'),
+        ('wrong_item', 'Wrong Item Sent'),
+        ('other', 'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('under_review', 'Under Review'),
+        ('resolved_refund', 'Resolved — Refund Issued'),
+        ('resolved_no_refund', 'Resolved — No Refund'),
+        ('closed', 'Closed'),
+    ]
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='disputes')
+    opened_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='disputes_opened')
+    reason = models.CharField(max_length=30, choices=REASON_CHOICES)
+    description = models.TextField()
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='open')
+    resolution = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'disputes'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Dispute #{self.id} on Order #{self.order_id} ({self.status})'
+
+
 class Receipt(models.Model):
     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='receipt')
     issued_at = models.DateTimeField(auto_now_add=True)
