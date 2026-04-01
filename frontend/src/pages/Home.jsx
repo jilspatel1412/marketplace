@@ -4,6 +4,12 @@ import { listingAPI } from '../api'
 import { useAuth } from '../context/AuthContext'
 import ListingCard from '../components/ListingCard'
 
+function getRecentlyViewedIds() {
+  try {
+    return JSON.parse(localStorage.getItem('recently_viewed') || '[]')
+  } catch { return [] }
+}
+
 const CATEGORIES = [
   { slug: 'electronics', name: 'Electronics', icon: '⚡' },
   { slug: 'clothing', name: 'Clothing', icon: '👗' },
@@ -23,6 +29,7 @@ const HOW_IT_WORKS = [
 
 export default function Home() {
   const [featured, setFeatured] = useState([])
+  const [recentlyViewed, setRecentlyViewed] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -36,6 +43,14 @@ export default function Home() {
     listingAPI.list({ page: 1 }).then(res => {
       setFeatured((res.data.results || res.data).slice(0, 8))
     }).catch(() => {}).finally(() => setLoading(false))
+
+    // Load recently viewed listings from localStorage
+    const ids = getRecentlyViewedIds()
+    if (ids.length > 0) {
+      Promise.all(ids.slice(0, 6).map(id => listingAPI.get(id).catch(() => null)))
+        .then(results => setRecentlyViewed(results.filter(Boolean).map(r => r.data)))
+        .catch(() => {})
+    }
   }, [])
 
   return (
@@ -95,6 +110,30 @@ export default function Home() {
           )}
         </div>
       </section>
+
+      {/* ── Recently Viewed ── */}
+      {recentlyViewed.length > 0 && (
+        <section style={{ padding: '0 0 48px' }}>
+          <div className="container">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ marginBottom: 4 }}>Recently Viewed</h2>
+                <p style={{ color: 'var(--text3)', fontSize: '0.85rem' }}>Pick up where you left off</p>
+              </div>
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ whiteSpace: 'nowrap' }}
+                onClick={() => { localStorage.removeItem('recently_viewed'); setRecentlyViewed([]) }}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="listings-grid">
+              {recentlyViewed.map(l => <ListingCard key={l.id} listing={l} />)}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Sell Your Item Banner ── */}
       <section style={{ padding: '0 0 48px' }}>

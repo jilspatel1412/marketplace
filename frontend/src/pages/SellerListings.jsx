@@ -23,6 +23,15 @@ export default function SellerListings() {
     } finally { setDeleting(null) }
   }
 
+  const handlePublish = async (id) => {
+    try {
+      await listingAPI.update(id, { status: 'active' })
+      setListings(prev => prev.map(l => l.id === id ? { ...l, status: 'active' } : l))
+    } catch (err) {
+      alert(err.response?.data?.error || 'Could not publish listing.')
+    }
+  }
+
   return (
     <div className="page">
       <div className="container">
@@ -63,7 +72,12 @@ export default function SellerListings() {
                       <td><span className={`badge badge-${l.status}`}>{l.status}</span></td>
                       <td style={{ color: 'var(--text3)', fontSize: '0.82rem' }}>{new Date(l.created_at).toLocaleDateString()}</td>
                       <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {l.status === 'draft' && (
+                            <button className="btn btn-success btn-sm" onClick={() => handlePublish(l.id)}>
+                              Publish
+                            </button>
+                          )}
                           <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/seller/listings/${l.id}/edit`)}>Edit</button>
                           <button
                             className="btn btn-danger btn-sm"

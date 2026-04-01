@@ -12,7 +12,7 @@ from rest_framework.response import Response
 
 from notifications.utils import send_email, create_notification
 from orders.models import Order, Payment
-from .models import Category, Listing, ListingImage, Offer, Bid, SearchLog, UserInteraction, ListingReport
+from .models import Category, Listing, ListingImage, Offer, Bid, SearchLog, UserInteraction, ListingReport, SearchAlert
 from .serializers import (
     CategorySerializer, ListingSerializer, ListingCreateSerializer,
     ListingImageSerializer, OfferSerializer, BidSerializer
@@ -48,6 +48,12 @@ def listing_list_create(request):
         condition = request.query_params.get('condition')
         if condition:
             qs = qs.filter(condition=condition)
+
+        listing_type = request.query_params.get('listing_type')
+        if listing_type == 'auction':
+            qs = qs.filter(auction_end_time__isnull=False)
+        elif listing_type == 'fixed':
+            qs = qs.filter(auction_end_time__isnull=True)
 
         min_price = request.query_params.get('min_price')
         max_price = request.query_params.get('max_price')
@@ -88,6 +94,27 @@ def listing_list_create(request):
     serializer = ListingCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     listing = serializer.save(seller=request.user)
+
+    # Fire matching search alerts
+    if listing.status == 'active':
+        from notifications.utils import create_notification
+        alerts = SearchAlert.objects.filter(is_active=True).exclude(user=request.user).select_related('user', 'category')
+        for alert in alerts:
+            if alert.query and alert.query.lower() not in listing.title.lower() and alert.query.lower() not in listing.description.lower():
+                continue
+            if alert.category and alert.category != listing.category:
+                continue
+            if alert.condition and alert.condition != listing.condition:
+                continue
+            if alert.max_price and listing.price > alert.max_price:
+                continue
+            create_notification(
+                alert.user, 'search_alert',
+                f'New match for "{alert.label}"',
+                f'"{listing.title}" — ${listing.price}',
+                f'/listings/{listing.id}'
+            )
+
     return Response(ListingSerializer(listing, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -129,11 +156,27 @@ def listing_detail(request, pk):
         return Response({'error': 'You do not own this listing.'}, status=status.HTTP_403_FORBIDDEN)
 
     if request.method in ('PUT', 'PATCH'):
+        old_price = listing.price
         partial = request.method == 'PATCH'
         serializer = ListingCreateSerializer(listing, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         serializer.instance.refresh_from_db()
+
+        # Price drop notification: notify all users who favourited this listing
+        new_price = serializer.instance.price
+        if new_price < old_price:
+            watchers = UserInteraction.objects.filter(
+                listing=serializer.instance, interaction_type='favorite'
+            ).select_related('user')
+            for interaction in watchers:
+                create_notification(
+                    interaction.user, 'price_drop',
+                    f'Price drop on "{serializer.instance.title}"',
+                    f'Price dropped from ${old_price} to ${new_price}.',
+                    f'/listings/{serializer.instance.id}'
+                )
+
         return Response(ListingSerializer(serializer.instance, context={'request': request}).data)
 
     if request.method == 'DELETE':
@@ -668,3 +711,67 @@ def delete_listing_image(request, pk, image_id):
 
     image.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ─── Search Alerts ────────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def search_alert_list_create(request):
+    if request.method == 'GET':
+        alerts = SearchAlert.objects.filter(user=request.user)
+        data = [
+            {
+                'id': a.id,
+                'label': a.label,
+                'query': a.query,
+                'category': a.category.name if a.category else '',
+                'condition': a.condition,
+                'max_price': str(a.max_price) if a.max_price else '',
+                'is_active': a.is_active,
+                'created_at': a.created_at.isoformat(),
+            }
+            for a in alerts
+        ]
+        return Response(data)
+
+    label = request.data.get('label', '').strip()
+    if not label:
+        return Response({'error': 'label is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    category_id = request.data.get('category') or None
+    category = None
+    if category_id:
+        try:
+            category = Category.objects.get(pk=category_id)
+        except Category.DoesNotExist:
+            pass
+
+    max_price = request.data.get('max_price') or None
+    alert = SearchAlert.objects.create(
+        user=request.user,
+        label=label,
+        query=request.data.get('query', '').strip(),
+        category=category,
+        condition=request.data.get('condition', '').strip(),
+        max_price=max_price,
+    )
+    return Response({'id': alert.id, 'label': alert.label}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['DELETE', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def search_alert_detail(request, alert_id):
+    try:
+        alert = SearchAlert.objects.get(pk=alert_id, user=request.user)
+    except SearchAlert.DoesNotExist:
+        return Response({'error': 'Alert not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        alert.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # PATCH: toggle active
+    alert.is_active = request.data.get('is_active', alert.is_active)
+    alert.save()
+    return Response({'id': alert.id, 'is_active': alert.is_active})

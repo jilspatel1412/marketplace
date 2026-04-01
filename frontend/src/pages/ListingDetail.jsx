@@ -116,6 +116,12 @@ export default function ListingDetail() {
       if (listRes.data.auction_end_time) {
         setAuctionEnded(new Date(listRes.data.auction_end_time) < new Date())
       }
+      // Track recently viewed in localStorage
+      try {
+        const prev = JSON.parse(localStorage.getItem('recently_viewed') || '[]')
+        const updated = [Number(id), ...prev.filter(i => i !== Number(id))].slice(0, 12)
+        localStorage.setItem('recently_viewed', JSON.stringify(updated))
+      } catch {}
     }).catch(() => navigate('/listings')).finally(() => setLoading(false))
   }, [id])
 
@@ -273,14 +279,22 @@ export default function ListingDetail() {
 
               <div style={{ paddingTop: 16, borderTop: '1px solid var(--border)', marginBottom: 16 }}>
                 <div style={{ fontSize: '0.82rem', color: 'var(--text2)', marginBottom: 4 }}>Seller</div>
-                <div style={{ fontWeight: 600 }}>
+                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span
                     style={{ cursor: 'pointer', color: 'var(--accent)' }}
                     onClick={() => navigate(`/sellers/${listing.seller_info?.username}`)}
                   >
                     {listing.seller_info?.username}
                   </span>
-                  {listing.seller_info?.is_verified && <span style={{ marginLeft: 6, color: 'var(--green)', fontSize: '0.75rem' }}>✓ Verified</span>}
+                  {listing.seller_info?.is_verified && <span style={{ color: 'var(--green)', fontSize: '0.75rem' }}>✓ Verified</span>}
+                  {listing.seller_info?.is_verified_seller && (
+                    <span style={{
+                      background: 'rgba(255,196,0,0.15)', color: '#f59e0b',
+                      fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px',
+                      borderRadius: 10, border: '1px solid rgba(245,158,11,0.3)',
+                      letterSpacing: '0.04em',
+                    }}>★ VERIFIED SELLER</span>
+                  )}
                 </div>
                 {listing.seller_info?.avg_rating ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
@@ -293,6 +307,11 @@ export default function ListingDetail() {
                   </div>
                 ) : (
                   <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginTop: 4 }}>No reviews yet</div>
+                )}
+                {listing.watcher_count > 0 && (
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginTop: 6 }}>
+                    👁 {listing.watcher_count} {listing.watcher_count === 1 ? 'person watching' : 'people watching'}
+                  </div>
                 )}
               </div>
 
