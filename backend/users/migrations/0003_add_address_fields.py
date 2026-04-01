@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("users", "0002_add_phone_number_unique_email"),
+        ("users", "0001_initial"),
     ]
 
     operations = [
