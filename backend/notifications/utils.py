@@ -3,10 +3,13 @@ from django.conf import settings
 
 
 def create_notification(user, notif_type, title, message, link=''):
-    from .models import Notification
-    Notification.objects.create(
-        user=user, type=notif_type, title=title, message=message, link=link
-    )
+    try:
+        from .models import Notification
+        Notification.objects.create(
+            user=user, type=notif_type, title=title, message=message, link=link
+        )
+    except Exception:
+        pass  # Don't let notification failures crash the calling view
 
 
 def send_email(recipient: str, subject: str, body: str, html: str = None) -> bool:
