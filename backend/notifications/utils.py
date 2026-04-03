@@ -11,7 +11,6 @@ def create_notification(user, notif_type, title, message, link=''):
 
 def send_email(recipient: str, subject: str, body: str, html: str = None) -> bool:
     """Send an email (optionally HTML) and log it."""
-    from .models import EmailLog
     try:
         send_mail(
             subject=subject,
@@ -21,8 +20,14 @@ def send_email(recipient: str, subject: str, body: str, html: str = None) -> boo
             fail_silently=False,
             html_message=html,
         )
-        EmailLog.objects.create(recipient=recipient, subject=subject, body=body, status='sent')
-        return True
+        status_val = 'sent'
     except Exception:
-        EmailLog.objects.create(recipient=recipient, subject=subject, body=body, status='failed')
-        return False
+        status_val = 'failed'
+
+    try:
+        from .models import EmailLog
+        EmailLog.objects.create(recipient=recipient, subject=subject, body=body, status=status_val)
+    except Exception:
+        pass  # Don't crash if logging fails
+
+    return status_val == 'sent'

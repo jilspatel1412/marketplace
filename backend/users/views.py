@@ -17,18 +17,8 @@ from .serializers import (
 )
 
 
-class VerifiedTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        if not self.user.is_verified and not self.user.is_staff:
-            raise drf_serializers.ValidationError(
-                {'detail': 'Please verify your email before logging in.'}
-            )
-        return data
-
-
 class VerifiedTokenObtainPairView(TokenObtainPairView):
-    serializer_class = VerifiedTokenObtainPairSerializer
+    pass  # Email verification check removed — allow login without verified email
 
 User = get_user_model()
 
@@ -72,7 +62,10 @@ def register(request):
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
-    _send_verification_email(user)
+    try:
+        _send_verification_email(user)
+    except Exception:
+        pass  # Don't let email failure block registration
     return Response({'message': 'Registration successful. Please check your email to verify your account.'}, status=status.HTTP_201_CREATED)
 
 
