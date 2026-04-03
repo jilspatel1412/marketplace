@@ -59,14 +59,18 @@ def _send_verification_email(user):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
-    serializer = RegisterSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    user = serializer.save()
     try:
-        _send_verification_email(user)
-    except Exception:
-        pass  # Don't let email failure block registration
-    return Response({'message': 'Registration successful. Please check your email to verify your account.'}, status=status.HTTP_201_CREATED)
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        try:
+            _send_verification_email(user)
+        except Exception:
+            pass  # Don't let email failure block registration
+        return Response({'message': 'Registration successful. Please check your email to verify your account.'}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        import traceback
+        return Response({'error': str(e), 'trace': traceback.format_exc()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
