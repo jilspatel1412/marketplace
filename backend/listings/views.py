@@ -260,18 +260,21 @@ def offer_list_create(request, pk):
     serializer.is_valid(raise_exception=True)
     offer = serializer.save(listing=listing, buyer=request.user)
 
-    # Notify seller
-    send_email(
-        recipient=listing.seller.email,
-        subject=f'New offer on "{listing.title}"',
-        body=f'Hi {listing.seller.username},\n\n{request.user.username} submitted an offer of ${offer.offer_price} on your listing "{listing.title}".\n\nLog in to review it.\n\nSellIt Team'
-    )
-    create_notification(
-        listing.seller, 'offer_received',
-        f'New offer on "{listing.title}"',
-        f'{request.user.username} offered ${offer.offer_price}.',
-        '/seller/offers'
-    )
+    # Notify seller (don't let notification failure block the offer)
+    try:
+        send_email(
+            recipient=listing.seller.email,
+            subject=f'New offer on "{listing.title}"',
+            body=f'Hi {listing.seller.username},\n\n{request.user.username} submitted an offer of ${offer.offer_price} on your listing "{listing.title}".\n\nLog in to review it.\n\nSellIt Team'
+        )
+        create_notification(
+            listing.seller, 'offer_received',
+            f'New offer on "{listing.title}"',
+            f'{request.user.username} offered ${offer.offer_price}.',
+            '/seller/offers'
+        )
+    except Exception:
+        pass
 
     return Response(OfferSerializer(offer).data, status=status.HTTP_201_CREATED)
 

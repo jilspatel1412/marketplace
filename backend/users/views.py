@@ -59,13 +59,19 @@ def _send_verification_email(user):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
+    import logging
+    logger = logging.getLogger(__name__)
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    user = serializer.save()
+    try:
+        user = serializer.save()
+    except Exception as e:
+        logger.exception('register: save failed')
+        return Response({'error': f'Save failed: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     try:
         _send_verification_email(user)
-    except Exception:
-        pass  # Don't let email failure block registration
+    except Exception as e:
+        logger.exception('register: email failed')
     return Response({'message': 'Registration successful. Please check your email to verify your account.'}, status=status.HTTP_201_CREATED)
 
 
