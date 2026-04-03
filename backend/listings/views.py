@@ -694,7 +694,46 @@ def report_listing(request, pk):
     if not created:
         return Response({'error': 'You have already reported this listing.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response({'status': 'Report submitted. Our team will review it.'}, status=status.HTTP_201_CREATED)
+    return Response({'status': 'Report submitted. Thanks for letting us know.'}, status=status.HTTP_201_CREATED)
+
+
+# ─── Admin: List Reports ─────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_reports(request):
+    if not request.user.is_staff and request.user.role != 'admin':
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    reports = ListingReport.objects.select_related('reporter', 'listing', 'listing__seller').order_by('-created_at')
+    data = [
+        {
+            'id': r.id,
+            'reporter_username': r.reporter.username,
+            'listing_id': r.listing.id,
+            'listing_title': r.listing.title,
+            'seller_username': r.listing.seller.username,
+            'reason': r.reason,
+            'reason_display': r.get_reason_display(),
+            'detail': r.detail,
+            'created_at': r.created_at.isoformat(),
+        }
+        for r in reports
+    ]
+    return Response(data)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_delete_report(request, report_id):
+    if not request.user.is_staff and request.user.role != 'admin':
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        report = ListingReport.objects.get(pk=report_id)
+    except ListingReport.DoesNotExist:
+        return Response({'error': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+    report.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ─── Delete Listing Image ─────────────────────────────────────────────────────

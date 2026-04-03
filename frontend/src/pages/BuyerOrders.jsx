@@ -183,7 +183,7 @@ export default function BuyerOrders() {
             onClose={() => setDisputeOrder(null)}
             onSubmit={() => {
               setDisputeOrder(null)
-              setDisputeMsg('Dispute opened. Our team will review it shortly.')
+              setDisputeMsg('Dispute opened. We\'ll look into this and get back to you.')
             }}
           />
         )}

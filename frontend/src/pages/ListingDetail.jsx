@@ -40,7 +40,7 @@ function ReportModal({ listingId, onClose }) {
         <div className="modal-title">Report Listing</div>
         {done ? (
           <div>
-            <div className="alert alert-success">Thank you — our team will review this listing.</div>
+            <div className="alert alert-success">Thanks for letting us know. We'll look into it.</div>
             <button className="btn btn-secondary" style={{ width: '100%', marginTop: 12 }} onClick={onClose}>Close</button>
           </div>
         ) : (

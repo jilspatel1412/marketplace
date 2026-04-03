@@ -22,4 +22,6 @@ urlpatterns = [
     path('<int:pk>/report/', views.report_listing, name='report_listing'),
     path('search-alerts/', views.search_alert_list_create, name='search_alert_list_create'),
     path('search-alerts/<int:alert_id>/', views.search_alert_detail, name='search_alert_detail'),
+    path('admin/reports/', views.admin_reports, name='admin_reports'),
+    path('admin/reports/<int:report_id>/', views.admin_delete_report, name='admin_delete_report'),
 ]
