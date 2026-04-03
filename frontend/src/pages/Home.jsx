@@ -12,13 +12,13 @@ function getRecentlyViewedIds() {
 
 const CATEGORIES = [
   { slug: 'electronics', name: 'Electronics', icon: '⚡' },
-  { slug: 'clothing', name: 'Clothing', icon: '👗' },
-  { slug: 'books', name: 'Books', icon: '📚' },
-  { slug: 'sports', name: 'Sports', icon: '⚽' },
-  { slug: 'home', name: 'Home & Garden', icon: '🏡' },
+  { slug: 'clothing-apparel', name: 'Clothing', icon: '👗' },
+  { slug: 'books-media', name: 'Books & Media', icon: '📚' },
+  { slug: 'sports-outdoors', name: 'Sports', icon: '⚽' },
+  { slug: 'home-garden', name: 'Home & Garden', icon: '🏡' },
   { slug: 'vehicles', name: 'Vehicles', icon: '🚗' },
-  { slug: 'music', name: 'Music', icon: '🎵' },
-  { slug: 'art', name: 'Art', icon: '🎨' },
+  { slug: 'musical-instruments', name: 'Music', icon: '🎵' },
+  { slug: 'collectibles-art', name: 'Art', icon: '🎨' },
 ]
 
 const HOW_IT_WORKS = [
@@ -58,7 +58,7 @@ export default function Home() {
       {/* ── Hero ── */}
       <section style={{
         background: 'linear-gradient(160deg, #0d0d10 0%, #1f0800 60%, #0d0d10 100%)',
-        padding: '72px 0 60px',
+        padding: 'clamp(40px, 8vw, 72px) 16px clamp(36px, 6vw, 60px)',
       }}>
         <div className="container" style={{ maxWidth: 760, textAlign: 'center' }}>
           <div style={{
@@ -141,7 +141,7 @@ export default function Home() {
           <div style={{
             background: 'linear-gradient(120deg, #1a0800 0%, #0d0d10 100%)',
             border: '1px solid rgba(255,77,0,0.25)',
-            borderRadius: 16, padding: '36px 40px',
+            borderRadius: 16, padding: 'clamp(20px, 4vw, 36px) clamp(20px, 4vw, 40px)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap',
           }}>
             <div>
