@@ -59,20 +59,44 @@ def _send_verification_email(user):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
-    import logging
-    logger = logging.getLogger(__name__)
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    try:
-        user = serializer.save()
-    except Exception as e:
-        logger.exception('register: save failed')
-        return Response({'error': f'Save failed: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    user = serializer.save()
     try:
         _send_verification_email(user)
-    except Exception as e:
-        logger.exception('register: email failed')
+    except Exception:
+        pass
     return Response({'message': 'Registration successful. Please check your email to verify your account.'}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_register_test(request):
+    """Temporary debug endpoint — remove after fixing."""
+    import traceback
+    steps = []
+    try:
+        steps.append('1. imports ok')
+        from .serializers import RegisterSerializer as RS
+        steps.append('2. serializer import ok')
+        from notifications.utils import send_email as se
+        steps.append('3. send_email import ok')
+        from notifications.models import EmailLog
+        steps.append('4. EmailLog import ok')
+        from notifications.models import Notification
+        steps.append('5. Notification import ok')
+        # test DB
+        from django.contrib.auth import get_user_model
+        U = get_user_model()
+        count = U.objects.count()
+        steps.append(f'6. user count={count}')
+        el_count = EmailLog.objects.count()
+        steps.append(f'7. email_log count={el_count}')
+        n_count = Notification.objects.count()
+        steps.append(f'8. notification count={n_count}')
+    except Exception as e:
+        steps.append(f'ERROR: {e}\n{traceback.format_exc()}')
+    return Response({'steps': steps})
 
 
 @api_view(['POST'])
