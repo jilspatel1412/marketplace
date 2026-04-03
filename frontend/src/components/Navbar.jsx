@@ -9,6 +9,7 @@ export default function Navbar() {
   const [notifs, setNotifs] = useState([])
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const bellRef = useRef(null)
 
   useEffect(() => {
@@ -28,6 +29,11 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [navigate])
+
   const handleBellClick = () => {
     setOpen(o => !o)
     if (!open && unread > 0) {
@@ -40,7 +46,9 @@ export default function Navbar() {
     if (notif.link) navigate(notif.link)
   }
 
-  const handleLogout = () => { logout(); navigate('/') }
+  const handleLogout = () => { logout(); navigate('/'); setMenuOpen(false) }
+
+  const navTo = (path) => { navigate(path); setMenuOpen(false) }
 
   const timeAgo = (dt) => {
     const s = Math.floor((Date.now() - new Date(dt)) / 1000)
@@ -53,31 +61,39 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <div className="navbar-inner">
-        <Link to="/" className="navbar-logo">SellIt</Link>
-        <div className="navbar-nav">
-          <Link to="/listings" className="btn btn-ghost btn-sm">Browse</Link>
+        <Link to="/" className="navbar-logo" onClick={() => setMenuOpen(false)}>SellIt</Link>
+
+        {/* Hamburger button — mobile only */}
+        <button className="navbar-toggle" onClick={() => setMenuOpen(o => !o)} aria-label="Toggle menu">
+          <span className={`hamburger ${menuOpen ? 'open' : ''}`}>
+            <span /><span /><span />
+          </span>
+        </button>
+
+        <div className={`navbar-nav ${menuOpen ? 'nav-open' : ''}`}>
+          <Link to="/listings" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Browse</Link>
           {!user ? (
             <>
-              <Link to="/login" className="btn btn-ghost btn-sm">Login</Link>
-              <Link to="/register" className="btn btn-primary btn-sm">Sign Up</Link>
+              <Link to="/login" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Login</Link>
+              <Link to="/register" className="btn btn-primary btn-sm" onClick={() => setMenuOpen(false)}>Sign Up</Link>
             </>
           ) : (
             <>
               {user.role === 'seller' && (
                 <>
-                  <Link to="/seller/dashboard" className="btn btn-ghost btn-sm">Dashboard</Link>
-                  <Link to="/seller/listings" className="btn btn-ghost btn-sm">My Listings</Link>
-                  <Link to="/seller/offers" className="btn btn-ghost btn-sm">Offers</Link>
-                  <Link to="/seller/orders" className="btn btn-ghost btn-sm">Orders</Link>
+                  <Link to="/seller/dashboard" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+                  <Link to="/seller/listings" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>My Listings</Link>
+                  <Link to="/seller/offers" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Offers</Link>
+                  <Link to="/seller/orders" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Orders</Link>
                 </>
               )}
               {user.role === 'buyer' && (
                 <>
-                  <Link to="/buyer/orders" className="btn btn-ghost btn-sm">Orders</Link>
-                  <Link to="/buyer/favorites" className="btn btn-ghost btn-sm">Favorites</Link>
+                  <Link to="/buyer/orders" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Orders</Link>
+                  <Link to="/buyer/favorites" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Favorites</Link>
                 </>
               )}
-              <Link to="/inbox" className="btn btn-ghost btn-sm">Inbox</Link>
+              <Link to="/inbox" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Inbox</Link>
 
               {/* Notification Bell */}
               <div ref={bellRef} style={{ position: 'relative' }}>
@@ -95,7 +111,7 @@ export default function Navbar() {
                 </button>
 
                 {open && (
-                  <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: 320, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', zIndex: 300, overflow: 'hidden' }}>
+                  <div className="notif-dropdown">
                     <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>Notifications</span>
                     </div>
@@ -107,8 +123,6 @@ export default function Navbar() {
                           key={n.id}
                           onClick={() => handleNotifClick(n)}
                           style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: n.link ? 'pointer' : 'default', background: n.is_read ? '#fff' : 'rgba(224,61,0,0.04)', transition: 'background 0.15s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                          onMouseLeave={e => e.currentTarget.style.background = n.is_read ? '#fff' : 'rgba(224,61,0,0.04)'}
                         >
                           <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)', marginBottom: 2 }}>{n.title}</div>
                           <div style={{ fontSize: '0.78rem', color: 'var(--text2)', lineHeight: 1.5 }}>{n.message}</div>
@@ -120,7 +134,7 @@ export default function Navbar() {
                 )}
               </div>
 
-              <Link to="/profile" className="btn btn-ghost btn-sm">{user.username}</Link>
+              <Link to="/profile" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>{user.username}</Link>
               <button onClick={handleLogout} className="btn btn-secondary btn-sm">Logout</button>
             </>
           )}
