@@ -93,6 +93,9 @@ export default function Navbar() {
                   <Link to="/buyer/favorites" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Favorites</Link>
                 </>
               )}
+              {user.role === 'admin' && (
+                <Link to="/support" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Support Panel</Link>
+              )}
               <Link to="/inbox" className="btn btn-ghost btn-sm" onClick={() => setMenuOpen(false)}>Inbox</Link>
 
               {/* Notification Bell */}

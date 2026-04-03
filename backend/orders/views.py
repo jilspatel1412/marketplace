@@ -516,9 +516,13 @@ def seller_reviews(request, seller_id):
 @permission_classes([IsAuthenticated])
 def dispute_list_create(request):
     if request.method == 'GET':
-        disputes = Dispute.objects.filter(
-            models.Q(order__buyer=request.user) | models.Q(order__seller=request.user)
-        ).select_related('order__listing', 'opened_by')
+        # Admin/staff can see all disputes
+        if request.user.is_staff or request.user.role == 'admin':
+            disputes = Dispute.objects.all().select_related('order__listing', 'opened_by', 'order__buyer', 'order__seller')
+        else:
+            disputes = Dispute.objects.filter(
+                models.Q(order__buyer=request.user) | models.Q(order__seller=request.user)
+            ).select_related('order__listing', 'opened_by')
         return Response(DisputeSerializer(disputes, many=True).data)
 
     # POST: open a dispute
@@ -600,3 +604,32 @@ def dispute_detail(request, dispute_id):
                 )
 
     return Response(DisputeSerializer(dispute).data)
+
+
+# ─── Admin Stats ─────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_stats(request):
+    if not request.user.is_staff and request.user.role != 'admin':
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    from django.contrib.auth import get_user_model
+    from listings.models import ListingReport, Listing
+    User = get_user_model()
+
+    open_disputes = Dispute.objects.filter(status__in=('open', 'under_review')).count()
+    total_disputes = Dispute.objects.count()
+    open_reports = ListingReport.objects.count()
+    total_orders = Order.objects.count()
+    total_users = User.objects.count()
+    total_listings = Listing.objects.filter(status='active').count()
+
+    return Response({
+        'open_disputes': open_disputes,
+        'total_disputes': total_disputes,
+        'open_reports': open_reports,
+        'total_orders': total_orders,
+        'total_users': total_users,
+        'total_listings': total_listings,
+    })

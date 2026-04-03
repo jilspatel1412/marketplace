@@ -151,4 +151,11 @@ export const analyticsAPI = {
   revenue: () => api.get('/api/analytics/revenue/'),
 }
 
+// ─── Admin / Support ──────────────────────────────────────────────────────
+export const adminAPI = {
+  stats: () => api.get('/api/orders/admin/stats/'),
+  reports: () => api.get('/api/listings/admin/reports/'),
+  deleteReport: (id) => api.delete(`/api/listings/admin/reports/${id}/`),
+}
+
 export default api

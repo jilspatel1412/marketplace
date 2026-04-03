@@ -84,10 +84,10 @@ export default function Home() {
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '1.05rem', maxWidth: 480, margin: '0 auto 32px', lineHeight: 1.75 }}>
             {isBuyer
-              ? 'Browse thousands of items from verified sellers. Make offers, buy instantly, and pay securely.'
+              ? 'Browse items from real sellers. Make offers, buy instantly, and pay through Stripe.'
               : isSeller
-              ? 'List your items for free, manage offers, and get paid securely through Stripe.'
-              : 'No middlemen. No nonsense. List your item in minutes or find exactly what you\'re looking for.'}
+              ? 'List your items for free, manage offers, and get paid through Stripe.'
+              : 'List your item in minutes or find exactly what you\'re looking for.'}
           </p>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button className="btn btn-primary btn-lg" onClick={() => navigate('/listings')}>Browse Listings</button>
@@ -250,25 +250,24 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Trust Statement ── */}
-      <section style={{
-        background: 'linear-gradient(135deg, #0a0a0b 0%, #1f0800 50%, #0a0a0b 100%)',
-        padding: 'clamp(48px, 8vw, 80px) 16px',
-        textAlign: 'center',
-      }}>
-        <div className="container" style={{ maxWidth: 640 }}>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 18 }}>Our Promise</p>
-          <h2 style={{ fontSize: 'clamp(1.8rem, 4.5vw, 3.2rem)', fontWeight: 900, lineHeight: 1.2, marginBottom: 20, color: '#fff' }}>
-            No fakes.{' '}
-            <span style={{ color: 'var(--accent2)' }}>No fraud.</span>{' '}
-            No doubt.
-          </h2>
-          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.95rem', lineHeight: 1.8, marginBottom: 36 }}>
-            Every seller is verified. Every transaction is protected. We take trust seriously so you don't have to think twice.
-          </p>
-          <button className="btn btn-primary btn-lg" onClick={() => navigate('/listings')}>Start Browsing</button>
-        </div>
-      </section>
+      {/* ── CTA ── */}
+      {!user && (
+        <section style={{
+          background: 'linear-gradient(135deg, #0a0a0b 0%, #1f0800 50%, #0a0a0b 100%)',
+          padding: 'clamp(40px, 6vw, 64px) 16px',
+          textAlign: 'center',
+        }}>
+          <div className="container" style={{ maxWidth: 540 }}>
+            <h2 style={{ fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', fontWeight: 800, lineHeight: 1.2, marginBottom: 16, color: '#fff' }}>
+              Ready to get started?
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.92rem', lineHeight: 1.7, marginBottom: 28 }}>
+              Create an account and start buying or selling in minutes.
+            </p>
+            <button className="btn btn-primary btn-lg" onClick={() => navigate('/register')}>Sign Up Free</button>
+          </div>
+        </section>
+      )}
     </div>
   )
 }

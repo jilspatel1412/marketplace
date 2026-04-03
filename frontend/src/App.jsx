@@ -25,6 +25,7 @@ import Inbox from './pages/Inbox'
 import OrderDetail from './pages/OrderDetail'
 import DisputeCenter from './pages/DisputeCenter'
 import SearchAlerts from './pages/SearchAlerts'
+import SupportPanel from './pages/SupportPanel'
 
 function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth()
@@ -62,6 +63,7 @@ function AppRoutes() {
         <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
         <Route path="/disputes" element={<ProtectedRoute><DisputeCenter /></ProtectedRoute>} />
         <Route path="/search-alerts" element={<ProtectedRoute><SearchAlerts /></ProtectedRoute>} />
+        <Route path="/support" element={<ProtectedRoute role="admin"><SupportPanel /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
