@@ -1,7 +1,10 @@
+import logging
 import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 from rest_framework import serializers as drf_serializers, status, generics
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -61,8 +64,14 @@ def _send_verification_email(user):
 @permission_classes([AllowAny])
 def register(request):
     serializer = RegisterSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    user = serializer.save()
+    if not serializer.is_valid():
+        logger.warning('Registration validation failed: %s', serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        user = serializer.save()
+    except Exception:
+        logger.exception('Registration save failed')
+        return Response({'error': 'Registration failed. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     try:
         _send_verification_email(user)
     except Exception:
