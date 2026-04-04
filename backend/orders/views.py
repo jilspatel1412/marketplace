@@ -600,8 +600,11 @@ def dispute_detail(request, dispute_id):
             stripe.Refund.create(payment_intent=payment.stripe_payment_intent_id)
             payment.status = 'refunded'
             payment.save()
-        except (Payment.DoesNotExist, Exception):
-            pass  # Refund attempt failed — admin can retry manually
+        except Payment.DoesNotExist:
+            pass  # No payment record found
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning('Stripe refund failed for order %s', order.id, exc_info=True)
 
     # Notify both parties on resolution
     if new_status in ('resolved_refund', 'resolved_no_refund', 'closed'):

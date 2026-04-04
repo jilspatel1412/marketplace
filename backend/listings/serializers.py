@@ -43,31 +43,27 @@ class ListingSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'seller_info', 'created_at', 'updated_at', 'current_bid')
 
+    def _build_seller_info(self, seller, avg_rating, review_count):
+        return {
+            'id': seller.id,
+            'username': seller.username,
+            'is_verified': seller.is_verified,
+            'is_verified_seller': seller.is_verified_seller,
+            'avg_rating': round(avg_rating, 1) if avg_rating else None,
+            'review_count': review_count or 0,
+        }
+
     def get_seller_info(self, obj):
         # Use pre-annotated values if available (from optimized querysets)
         if hasattr(obj, '_seller_avg_rating'):
-            return {
-                'id': obj.seller.id,
-                'username': obj.seller.username,
-                'is_verified': obj.seller.is_verified,
-                'is_verified_seller': obj.seller.is_verified_seller,
-                'avg_rating': round(obj._seller_avg_rating, 1) if obj._seller_avg_rating else None,
-                'review_count': obj._seller_review_count or 0,
-            }
+            return self._build_seller_info(obj.seller, obj._seller_avg_rating, obj._seller_review_count)
         # Fallback for single-object serialization
         from django.db.models import Avg, Count
         from orders.models import Review
         stats = Review.objects.filter(seller=obj.seller).aggregate(
             avg=Avg('rating'), count=Count('id')
         )
-        return {
-            'id': obj.seller.id,
-            'username': obj.seller.username,
-            'is_verified': obj.seller.is_verified,
-            'is_verified_seller': obj.seller.is_verified_seller,
-            'avg_rating': round(stats['avg'], 1) if stats['avg'] else None,
-            'review_count': stats['count'],
-        }
+        return self._build_seller_info(obj.seller, stats['avg'], stats['count'])
 
     def get_bid_count(self, obj):
         if hasattr(obj, '_bid_count'):
