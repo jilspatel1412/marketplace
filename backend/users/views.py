@@ -21,8 +21,18 @@ from .serializers import (
 )
 
 
+class VerifiedTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if not self.user.is_verified:
+            raise drf_serializers.ValidationError(
+                {'detail': 'Please verify your email before logging in. Check your inbox for the verification link.'}
+            )
+        return data
+
+
 class VerifiedTokenObtainPairView(TokenObtainPairView):
-    pass  # Email verification check removed — allow login without verified email
+    serializer_class = VerifiedTokenObtainPairSerializer
 
 User = get_user_model()
 
