@@ -1,7 +1,10 @@
 import io
+import logging
 import stripe
 import json
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 from django.db import models
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -603,8 +606,7 @@ def dispute_detail(request, dispute_id):
         except Payment.DoesNotExist:
             pass  # No payment record found
         except Exception:
-            import logging
-            logging.getLogger(__name__).warning('Stripe refund failed for order %s', order.id, exc_info=True)
+            logger.exception('Stripe refund failed for order %s', order.id)
 
     # Notify both parties on resolution
     if new_status in ('resolved_refund', 'resolved_no_refund', 'closed'):

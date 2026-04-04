@@ -58,7 +58,8 @@ function MessagePane({ partnerId, partnerUsername }) {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
 
-  const load = () => messageAPI.thread(partnerId).then(r => setMessages(r.data)).catch(() => {})
+  const [msgError, setMsgError] = useState('')
+  const load = () => messageAPI.thread(partnerId).then(r => { setMessages(r.data); setMsgError('') }).catch(() => setMsgError('Could not load messages.'))
 
   useEffect(() => {
     if (!partnerId) return
@@ -86,6 +87,7 @@ function MessagePane({ partnerId, partnerUsername }) {
         {partnerUsername}
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {msgError && <div className="alert alert-error">{msgError}</div>}
         {messages.map(m => {
           const mine = m.sender === user.id
           return (

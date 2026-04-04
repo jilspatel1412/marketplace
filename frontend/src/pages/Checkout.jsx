@@ -31,16 +31,21 @@ function CheckoutForm({ order, clientSecret }) {
     if (!stripe || !elements) return
     setError(''); setLoading(true)
 
-    const result = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: { card: elements.getElement(CardElement) }
-    })
+    try {
+      const result = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: { card: elements.getElement(CardElement) }
+      })
 
-    if (result.error) {
-      setError(result.error.message)
-      setLoading(false)
-    } else if (result.paymentIntent.status === 'succeeded') {
-      setSuccess(true)
-      setTimeout(() => navigate('/buyer/orders'), 3000)
+      if (result.error) {
+        setError(result.error.message)
+      } else if (result.paymentIntent.status === 'succeeded') {
+        setSuccess(true)
+        setTimeout(() => navigate('/buyer/orders'), 3000)
+      }
+    } catch {
+      setError('Payment failed. Please try again.')
+    } finally {
+      if (!success) setLoading(false)
     }
   }
 
