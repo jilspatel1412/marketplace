@@ -37,6 +37,7 @@ export default function Home() {
   const [featured, setFeatured] = useState([])
   const [recentlyViewed, setRecentlyViewed] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
   const { user } = useAuth()
 
@@ -46,7 +47,7 @@ export default function Home() {
   useEffect(() => {
     listingAPI.list({ page: 1 }).then(res => {
       setFeatured((res.data.results || res.data).slice(0, 8))
-    }).catch(() => {}).finally(() => setLoading(false))
+    }).catch(() => setError('Could not load listings.')).finally(() => setLoading(false))
 
     const ids = getRecentlyViewedIds()
     if (ids.length > 0) {
@@ -143,7 +144,9 @@ export default function Home() {
             </div>
             <button className="btn btn-secondary btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={() => navigate('/listings')}>View all</button>
           </div>
-          {loading ? (
+          {error ? (
+            <div className="alert alert-error">{error}</div>
+          ) : loading ? (
             <div className="spinner" />
           ) : featured.length === 0 ? (
             <div className="empty-state">

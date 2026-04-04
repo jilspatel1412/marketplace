@@ -6,11 +6,12 @@ export default function SearchAlerts() {
   const navigate = useNavigate()
   const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     searchAlertAPI.list()
       .then(res => setAlerts(res.data))
-      .catch(() => {})
+      .catch(() => setError('Could not load alerts.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -18,14 +19,14 @@ export default function SearchAlerts() {
     try {
       await searchAlertAPI.delete(id)
       setAlerts(prev => prev.filter(a => a.id !== id))
-    } catch {}
+    } catch { setError('Failed to delete alert.') }
   }
 
   const handleToggle = async (alert) => {
     try {
       await searchAlertAPI.toggle(alert.id, !alert.is_active)
       setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, is_active: !a.is_active } : a))
-    } catch {}
+    } catch { setError('Failed to update alert.') }
   }
 
   if (loading) return <div className="spinner" />
@@ -43,6 +44,7 @@ export default function SearchAlerts() {
           </button>
         </div>
 
+        {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
         {alerts.length === 0 ? (
           <div className="empty-state">
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔔</div>

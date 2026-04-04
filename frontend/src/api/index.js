@@ -14,7 +14,8 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Auto-refresh token on 401
+// Auto-refresh token on 401 (mutex prevents parallel refresh calls)
+let _refreshPromise = null
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
@@ -24,7 +25,11 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem('refresh_token')
       if (refresh) {
         try {
-          const { data } = await axios.post(`${BASE_URL}/api/auth/token/refresh/`, { refresh })
+          if (!_refreshPromise) {
+            _refreshPromise = axios.post(`${BASE_URL}/api/auth/token/refresh/`, { refresh })
+              .finally(() => { _refreshPromise = null })
+          }
+          const { data } = await _refreshPromise
           localStorage.setItem('access_token', data.access)
           original.headers.Authorization = `Bearer ${data.access}`
           return api(original)

@@ -42,6 +42,11 @@ class Command(BaseCommand):
 def _settle_auction(listing, top_bid):
     """Create order + PaymentIntent for an expired auction. Called by management command and lazy view trigger."""
     with transaction.atomic():
+        # Lock and re-check to prevent duplicate settlements
+        listing = Listing.objects.select_for_update().get(pk=listing.pk)
+        if listing.status != 'active':
+            return None  # Already settled
+
         listing.status = 'sold'
         listing.save()
 
@@ -58,7 +63,7 @@ def _settle_auction(listing, top_bid):
             try:
                 intent = stripe.PaymentIntent.create(
                     amount=int(top_bid.amount * 100),
-                    currency='usd',
+                    currency='cad',
                     metadata={'order_id': str(order.id)},
                 )
                 Payment.objects.create(
@@ -68,7 +73,8 @@ def _settle_auction(listing, top_bid):
                     status='pending',
                 )
             except Exception:
-                pass
+                import logging
+                logging.getLogger(__name__).exception('Stripe PaymentIntent failed for auction order %s', order.id)
 
         send_email(
             recipient=top_bid.bidder.email,

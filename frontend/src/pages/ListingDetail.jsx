@@ -104,24 +104,20 @@ export default function ListingDetail() {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([
-      listingAPI.get(id),
-      listingAPI.related(id),
-      bidAPI.list(id),
-    ]).then(([listRes, relRes, bidRes]) => {
+    listingAPI.get(id).then(listRes => {
       setListing(listRes.data)
       setIsFavorited(listRes.data.is_favorited || false)
-      setRelated(relRes.data)
-      setBids(bidRes.data)
       if (listRes.data.auction_end_time) {
         setAuctionEnded(new Date(listRes.data.auction_end_time) < new Date())
       }
-      // Track recently viewed in localStorage
       try {
         const prev = JSON.parse(localStorage.getItem('recently_viewed') || '[]')
         const updated = [Number(id), ...prev.filter(i => i !== Number(id))].slice(0, 12)
         localStorage.setItem('recently_viewed', JSON.stringify(updated))
       } catch {}
+      // Load related and bids independently — don't crash page if these fail
+      listingAPI.related(id).then(r => setRelated(r.data)).catch(() => {})
+      bidAPI.list(id).then(r => setBids(r.data)).catch(() => {})
     }).catch(() => navigate('/listings')).finally(() => setLoading(false))
   }, [id])
 

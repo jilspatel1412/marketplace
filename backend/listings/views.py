@@ -1,7 +1,10 @@
+import logging
 import stripe
 from decimal import Decimal
 from django.conf import settings as django_settings
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 from django.db.models import Q, Avg, Count, Exists, OuterRef, BooleanField, Value
 from django.utils import timezone
 from rest_framework import status, generics
@@ -124,7 +127,7 @@ def listing_list_create(request):
         from notifications.utils import create_notification
         alerts = SearchAlert.objects.filter(is_active=True).exclude(user=request.user).select_related('user', 'category')
         for alert in alerts:
-            if alert.query and alert.query.lower() not in listing.title.lower() and alert.query.lower() not in listing.description.lower():
+            if alert.query and alert.query.lower() not in listing.title.lower() + ' ' + listing.description.lower():
                 continue
             if alert.category and alert.category != listing.category:
                 continue
@@ -345,6 +348,11 @@ def offer_update(request, offer_id):
         return Response({'error': 'Status must be ACCEPTED or REJECTED.'}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
+        # Lock listing to prevent two offers being accepted simultaneously
+        listing = Listing.objects.select_for_update().get(pk=listing.pk)
+        if listing.status != 'active':
+            return Response({'error': 'Listing is no longer available.'}, status=status.HTTP_400_BAD_REQUEST)
+
         offer.status = new_status
         offer.save()
 
@@ -384,7 +392,7 @@ def offer_update(request, offer_id):
                         status='pending',
                     )
                 except Exception:
-                    pass
+                    logger.exception('Stripe PaymentIntent failed for offer order %s', order.id)
 
             # Notify buyer
             send_email(
@@ -630,7 +638,7 @@ def buy_now(request, pk):
                 )
                 client_secret = intent.client_secret
             except Exception:
-                pass
+                logger.exception('Stripe PaymentIntent failed for buy_now order %s', order.id)
 
     return Response({
         'order_id': order.id,
@@ -691,7 +699,7 @@ def accept_auction_bid(request, pk):
                 )
                 client_secret = intent.client_secret
             except Exception:
-                pass
+                logger.exception('Stripe PaymentIntent failed for auction order %s', order.id)
 
         # Notify winner
         send_email(

@@ -17,10 +17,23 @@ def thread_list(request):
     """Return the latest message per conversation partner."""
     me = request.user
 
-    # Find all distinct users the current user has messaged or received from
-    sent_to = Message.objects.filter(sender=me).values_list('recipient_id', flat=True)
-    received_from = Message.objects.filter(recipient=me).values_list('sender_id', flat=True)
-    partner_ids = set(sent_to) | set(received_from)
+    # Find all distinct partner IDs in one pass
+    sent_to = set(Message.objects.filter(sender=me).values_list('recipient_id', flat=True))
+    received_from = set(Message.objects.filter(recipient=me).values_list('sender_id', flat=True))
+    partner_ids = sent_to | received_from
+
+    if not partner_ids:
+        return Response([])
+
+    # Batch-fetch all partner users in one query
+    partners = {u.pk: u for u in User.objects.filter(pk__in=partner_ids)}
+
+    # Batch-fetch unread counts per sender
+    from django.db.models import Count
+    unread_counts = dict(
+        Message.objects.filter(sender_id__in=partner_ids, recipient=me, is_read=False)
+        .values_list('sender_id').annotate(c=Count('id')).values_list('sender_id', 'c')
+    )
 
     threads = []
     for pid in partner_ids:
@@ -31,14 +44,12 @@ def thread_list(request):
             .order_by('-created_at')
             .first()
         )
-        if latest:
-            unread = Message.objects.filter(sender_id=pid, recipient=me, is_read=False).count()
-            partner = User.objects.get(pk=pid)
+        if latest and pid in partners:
             threads.append({
                 'partner_id': pid,
-                'partner_username': partner.username,
+                'partner_username': partners[pid].username,
                 'last_message': MessageSerializer(latest).data,
-                'unread': unread,
+                'unread': unread_counts.get(pid, 0),
             })
 
     threads.sort(key=lambda t: t['last_message']['created_at'], reverse=True)
