@@ -158,6 +158,7 @@ export default function EditListing() {
                   type="datetime-local"
                   value={form.auction_end_time}
                   onChange={e => setForm({...form, auction_end_time: e.target.value})}
+                  min={new Date(Date.now() + 3600000).toISOString().slice(0, 16)}
                   required
                 />
               </div>

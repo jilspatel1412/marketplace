@@ -50,8 +50,8 @@ export default function Home() {
 
     const ids = getRecentlyViewedIds()
     if (ids.length > 0) {
-      Promise.all(ids.slice(0, 6).map(id => listingAPI.get(id).catch(() => null)))
-        .then(results => setRecentlyViewed(results.filter(Boolean).map(r => r.data)))
+      listingAPI.batch(ids.slice(0, 6))
+        .then(res => setRecentlyViewed(res.data))
         .catch(() => {})
     }
   }, [])

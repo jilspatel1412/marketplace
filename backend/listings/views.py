@@ -2,7 +2,7 @@ import stripe
 from decimal import Decimal
 from django.conf import settings as django_settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Avg, Count, Exists, OuterRef, Subquery, BooleanField, Value
 from django.utils import timezone
 from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes, parser_classes
@@ -17,6 +17,28 @@ from .serializers import (
     CategorySerializer, ListingSerializer, ListingCreateSerializer,
     ListingImageSerializer, OfferSerializer, BidSerializer
 )
+
+
+def _annotate_listings(qs, user=None):
+    """Add annotations to avoid N+1 queries in ListingSerializer."""
+    from orders.models import Review
+    qs = qs.annotate(
+        _bid_count=Count('bids', distinct=True),
+        _watcher_count=Count('interactions', filter=Q(interactions__interaction_type='favorite'), distinct=True),
+        _seller_avg_rating=Avg('seller__reviews_received__rating'),
+        _seller_review_count=Count('seller__reviews_received', distinct=True),
+    )
+    if user and user.is_authenticated:
+        qs = qs.annotate(
+            _is_favorited=Exists(
+                UserInteraction.objects.filter(
+                    user=user, listing=OuterRef('pk'), interaction_type='favorite'
+                )
+            )
+        )
+    else:
+        qs = qs.annotate(_is_favorited=Value(False, output_field=BooleanField()))
+    return qs
 
 # ─── Categories ───────────────────────────────────────────────────────────────
 
@@ -33,7 +55,10 @@ def category_list(request):
 @permission_classes([IsAuthenticatedOrReadOnly])
 def listing_list_create(request):
     if request.method == 'GET':
-        qs = Listing.objects.filter(status='active').select_related('seller', 'category').prefetch_related('images')
+        qs = _annotate_listings(
+            Listing.objects.filter(status='active').select_related('seller', 'category').prefetch_related('images'),
+            request.user
+        )
 
         # Search & Filter
         keyword = request.query_params.get('q', '').strip()
@@ -217,14 +242,34 @@ def related_listings(request, pk):
     price_min = price * Decimal('0.8')
     price_max = price * Decimal('1.2')
 
-    related = Listing.objects.filter(
-        category=listing.category,
-        status='active',
-        price__gte=price_min,
-        price__lte=price_max,
-    ).exclude(pk=pk).prefetch_related('images').select_related('seller', 'category')[:6]
+    related = _annotate_listings(
+        Listing.objects.filter(
+            category=listing.category,
+            status='active',
+            price__gte=price_min,
+            price__lte=price_max,
+        ).exclude(pk=pk).prefetch_related('images').select_related('seller', 'category'),
+        request.user
+    )[:6]
 
     return Response(ListingSerializer(related, many=True, context={'request': request}).data)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def batch_listings(request):
+    """Fetch multiple listings by IDs in a single request."""
+    ids = request.data.get('ids', [])
+    if not isinstance(ids, list):
+        return Response({'error': 'ids must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
+    ids = [int(i) for i in ids[:12] if str(i).isdigit()]
+    if not ids:
+        return Response([])
+    qs = _annotate_listings(
+        Listing.objects.filter(id__in=ids, status='active').select_related('seller', 'category').prefetch_related('images'),
+        request.user
+    )
+    return Response(ListingSerializer(qs, many=True, context={'request': request}).data)
 
 
 # ─── Offers ───────────────────────────────────────────────────────────────────

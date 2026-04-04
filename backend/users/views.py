@@ -1,6 +1,7 @@
 import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import serializers as drf_serializers, status, generics
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -114,6 +115,7 @@ def password_reset_request(request):
     try:
         user = User.objects.get(email=email)
         user.password_reset_token = uuid.uuid4()
+        user.password_reset_requested_at = timezone.now()
         user.save()
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={user.password_reset_token}"
         send_email(
@@ -138,8 +140,15 @@ def password_reset_confirm(request):
     except User.DoesNotExist:
         return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Check 24-hour expiry
+    if user.password_reset_requested_at and (timezone.now() - user.password_reset_requested_at).total_seconds() > 86400:
+        user.password_reset_token = None
+        user.save()
+        return Response({'error': 'This reset link has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
     user.set_password(password)
     user.password_reset_token = None
+    user.password_reset_requested_at = None
     user.save()
     return Response({'message': 'Password reset successful. You can now log in.'})
 

@@ -1,7 +1,5 @@
-from django.db.models import Avg, Count
 from rest_framework import serializers
 from .models import Category, Listing, ListingImage, Offer, Bid, UserInteraction
-from users.serializers import UserSerializer
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -46,6 +44,18 @@ class ListingSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'seller_info', 'created_at', 'updated_at', 'current_bid')
 
     def get_seller_info(self, obj):
+        # Use pre-annotated values if available (from optimized querysets)
+        if hasattr(obj, '_seller_avg_rating'):
+            return {
+                'id': obj.seller.id,
+                'username': obj.seller.username,
+                'is_verified': obj.seller.is_verified,
+                'is_verified_seller': obj.seller.is_verified_seller,
+                'avg_rating': round(obj._seller_avg_rating, 1) if obj._seller_avg_rating else None,
+                'review_count': obj._seller_review_count or 0,
+            }
+        # Fallback for single-object serialization
+        from django.db.models import Avg, Count
         from orders.models import Review
         stats = Review.objects.filter(seller=obj.seller).aggregate(
             avg=Avg('rating'), count=Count('id')
@@ -60,12 +70,18 @@ class ListingSerializer(serializers.ModelSerializer):
         }
 
     def get_bid_count(self, obj):
+        if hasattr(obj, '_bid_count'):
+            return obj._bid_count
         return obj.bids.count()
 
     def get_watcher_count(self, obj):
+        if hasattr(obj, '_watcher_count'):
+            return obj._watcher_count
         return UserInteraction.objects.filter(listing=obj, interaction_type='favorite').count()
 
     def get_is_favorited(self, obj):
+        if hasattr(obj, '_is_favorited'):
+            return obj._is_favorited
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return UserInteraction.objects.filter(

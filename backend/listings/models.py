@@ -36,10 +36,10 @@ class Listing(models.Model):
     price = models.DecimalField(max_digits=12, decimal_places=2)
     is_negotiable = models.BooleanField(default=False)
     condition = models.CharField(max_length=15, choices=CONDITION_CHOICES, default='used')
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active', db_index=True)
     auction_end_time = models.DateTimeField(null=True, blank=True)
     current_bid = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

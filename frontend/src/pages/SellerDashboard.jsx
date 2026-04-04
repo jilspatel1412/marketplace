@@ -15,6 +15,7 @@ export default function SellerDashboard() {
         setRevenue(revRes.data)
         setTrends(trendRes.data)
       })
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
@@ -54,7 +55,7 @@ export default function SellerDashboard() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
+        <div className="dashboard-charts-grid">
           {/* Weekly search volume */}
           <div className="card card-body">
             <h3 style={{ marginBottom: 20 }}>Weekly Search Volume</h3>

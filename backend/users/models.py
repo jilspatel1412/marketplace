@@ -23,6 +23,7 @@ class User(AbstractUser):
     is_verified_seller = models.BooleanField(default=False)
     verification_token = models.UUIDField(default=uuid.uuid4, unique=True, null=True, blank=True)
     password_reset_token = models.UUIDField(null=True, blank=True)
+    password_reset_requested_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'users'
