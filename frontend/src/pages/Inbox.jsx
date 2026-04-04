@@ -161,7 +161,7 @@ export default function Inbox() {
     <div className="page" style={{ paddingTop: 0 }}>
       <div className="container" style={{ maxWidth: 900, paddingTop: 36 }}>
         <h1 style={{ marginBottom: 24 }}>Inbox</h1>
-        <div className="card" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', height: 560, overflow: 'hidden' }}>
+        <div className="card inbox-grid">
           <ThreadList threads={threads} activeId={activeId} onSelect={handleSelect} />
           {activeId ? (
             <MessagePane partnerId={activeId} partnerUsername={activeUsername} />

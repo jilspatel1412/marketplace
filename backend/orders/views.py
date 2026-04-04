@@ -592,6 +592,17 @@ def dispute_detail(request, dispute_id):
         dispute.resolution = resolution
     dispute.save()
 
+    # Process Stripe refund if resolving with refund
+    if new_status == 'resolved_refund':
+        try:
+            payment = Payment.objects.get(order=order, status='succeeded')
+            stripe.api_key = settings.STRIPE_SECRET_KEY
+            stripe.Refund.create(payment_intent=payment.stripe_payment_intent_id)
+            payment.status = 'refunded'
+            payment.save()
+        except (Payment.DoesNotExist, Exception):
+            pass  # Refund attempt failed — admin can retry manually
+
     # Notify both parties on resolution
     if new_status in ('resolved_refund', 'resolved_no_refund', 'closed'):
         for party in (order.buyer, order.seller):

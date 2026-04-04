@@ -62,7 +62,7 @@ function CheckoutForm({ order, clientSecret }) {
           <CardElement options={CARD_STYLE} />
         </div>
         <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginTop: 6 }}>
-          Test card: 4242 4242 4242 4242 · Any future date · Any CVC
+          Your card details are processed securely by Stripe.
         </div>
       </div>
       {error && <div className="alert alert-error">{error}</div>}

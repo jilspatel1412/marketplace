@@ -78,6 +78,7 @@ export const listingAPI = {
   acceptBid: (id) => api.post(`/api/listings/${id}/accept-bid/`),
   deleteImage: (listingId, imageId) => api.delete(`/api/listings/${listingId}/images/${imageId}/`),
   report: (id, data) => api.post(`/api/listings/${id}/report/`, data),
+  batch: (ids) => api.post('/api/listings/batch/', { ids }),
 }
 
 // ─── Offers ────────────────────────────────────────────────────────────────

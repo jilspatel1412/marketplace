@@ -16,6 +16,10 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (form.password !== form.password2) {
+      setError('Passwords do not match.')
+      return
+    }
     setError(''); setLoading(true)
     try {
       await authAPI.register(form)

@@ -197,7 +197,7 @@ export default function ListingDetail() {
   return (
     <div className="page">
       <div className="container">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 40, alignItems: 'start' }}>
+        <div className="listing-detail-grid">
           {/* Left: Images + Details */}
           <div>
             <ImageGallery images={listing.images} />
