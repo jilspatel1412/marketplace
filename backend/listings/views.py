@@ -2,7 +2,7 @@ import stripe
 from decimal import Decimal
 from django.conf import settings as django_settings
 from django.db import transaction
-from django.db.models import Q, Avg, Count, Exists, OuterRef, Subquery, BooleanField, Value
+from django.db.models import Q, Avg, Count, Exists, OuterRef, BooleanField, Value
 from django.utils import timezone
 from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes, parser_classes
@@ -21,7 +21,6 @@ from .serializers import (
 
 def _annotate_listings(qs, user=None):
     """Add annotations to avoid N+1 queries in ListingSerializer."""
-    from orders.models import Review
     qs = qs.annotate(
         _bid_count=Count('bids', distinct=True),
         _watcher_count=Count('interactions', filter=Q(interactions__interaction_type='favorite'), distinct=True),
