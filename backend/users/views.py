@@ -21,18 +21,8 @@ from .serializers import (
 )
 
 
-class VerifiedTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        if not self.user.is_verified:
-            raise drf_serializers.ValidationError(
-                {'detail': 'Please verify your email before logging in. Check your inbox for the verification link.'}
-            )
-        return data
-
-
 class VerifiedTokenObtainPairView(TokenObtainPairView):
-    serializer_class = VerifiedTokenObtainPairSerializer
+    pass  # Login works without email verification
 
 User = get_user_model()
 
@@ -73,6 +63,22 @@ def _send_verification_email(user):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
+    email = request.data.get('email', '').strip()
+    # If an unverified user with this email exists, resend verification instead of blocking
+    if email:
+        try:
+            existing = User.objects.get(email=email, is_verified=False)
+            if not existing.verification_token:
+                existing.verification_token = uuid.uuid4()
+                existing.save()
+            try:
+                _send_verification_email(existing)
+            except Exception:
+                logger.exception('Failed to resend verification email to %s', email)
+            return Response({'message': 'A verification email has been resent. Please check your inbox.'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            pass
+
     serializer = RegisterSerializer(data=request.data)
     if not serializer.is_valid():
         logger.warning('Registration validation failed: %s', serializer.errors)
@@ -85,7 +91,7 @@ def register(request):
     try:
         _send_verification_email(user)
     except Exception:
-        pass
+        logger.exception('Failed to send verification email to %s', user.email)
     return Response({'message': 'Registration successful. Please check your email to verify your account.'}, status=status.HTTP_201_CREATED)
 
 
