@@ -100,9 +100,9 @@ def register(request):
 
     try:
         user = serializer.save()
-    except Exception:
+    except Exception as e:
         logger.exception('Registration save failed')
-        return Response({'error': 'Registration failed. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': f'Registration failed: {type(e).__name__}: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     try:
         _send_verification_email(user)
