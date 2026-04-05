@@ -116,18 +116,8 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS
-_cors_origins = config('CORS_ALLOWED_ORIGINS', default='', cast=str)
-if _cors_origins:
-    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(',') if o.strip()]
-else:
-    CORS_ALLOWED_ORIGINS = [
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'https://sellitgroup5.netlify.app',
-        'https://marketplace-seven-mu.vercel.app',
-    ]
-CORS_ALLOW_CREDENTIALS = True
+# CORS — allow all origins (app uses JWT headers, not cookies)
+CORS_ALLOW_ALL_ORIGINS = True
 
 # Stripe
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
