@@ -125,6 +125,7 @@ else:
         'http://localhost:5173',
         'http://localhost:3000',
         'https://sellitgroup5.netlify.app',
+        'https://marketplace-seven-mu.vercel.app',
     ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -141,7 +142,7 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('EMAIL_HOST_USER', default='noreply@sellit.com')
 
-FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+FRONTEND_URL = config('FRONTEND_URL', default='https://marketplace-seven-mu.vercel.app')
 
 # Cloudinary — only activate if credentials are configured
 CLOUDINARY_STORAGE = {
