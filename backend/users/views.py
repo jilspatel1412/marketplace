@@ -98,10 +98,15 @@ def register(request):
         logger.warning('Registration validation failed: %s', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    user = serializer.save()
+    try:
+        user = serializer.save()
+    except Exception:
+        logger.exception('Registration save failed')
+        return Response({'error': 'Registration failed. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     try:
         _send_verification_email(user)
+        logger.info('Verification email sent to %s', user.email)
     except Exception:
         logger.exception('Failed to send verification email to %s', user.email)
 
