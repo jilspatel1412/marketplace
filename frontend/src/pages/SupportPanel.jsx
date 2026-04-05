@@ -24,10 +24,14 @@ export default function SupportPanel() {
   const [stats, setStats] = useState(null)
   const [disputes, setDisputes] = useState([])
   const [reports, setReports] = useState([])
+  const [users, setUsers] = useState([])
+  const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [resolution, setResolution] = useState('')
   const [updating, setUpdating] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
+  const [listingSearch, setListingSearch] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -35,10 +39,14 @@ export default function SupportPanel() {
       adminAPI.stats(),
       disputeAPI.list(),
       adminAPI.reports(),
-    ]).then(([statsRes, disputesRes, reportsRes]) => {
+      adminAPI.users(),
+      adminAPI.listings(),
+    ]).then(([statsRes, disputesRes, reportsRes, usersRes, listingsRes]) => {
       setStats(statsRes.data)
       setDisputes(disputesRes.data)
       setReports(reportsRes.data)
+      setUsers(usersRes.data)
+      setListings(listingsRes.data)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
@@ -63,14 +71,54 @@ export default function SupportPanel() {
     } catch {}
   }
 
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user and all their data?')) return
+    try {
+      await adminAPI.deleteUser(userId)
+      setUsers(prev => prev.filter(u => u.id !== userId))
+      setStats(prev => prev ? { ...prev, total_users: prev.total_users - 1 } : prev)
+    } catch {}
+  }
+
+  const handleToggleUser = async (userId, field, value) => {
+    try {
+      const res = await adminAPI.updateUser(userId, { [field]: value })
+      setUsers(prev => prev.map(u => u.id === userId ? res.data : u))
+    } catch {}
+  }
+
+  const handleDeleteListing = async (listingId) => {
+    if (!window.confirm('Are you sure you want to delete this listing?')) return
+    try {
+      await adminAPI.deleteListing(listingId)
+      setListings(prev => prev.filter(l => l.id !== listingId))
+      setStats(prev => prev ? { ...prev, total_listings: prev.total_listings - 1 } : prev)
+    } catch {}
+  }
+
   if (loading) return <div className="spinner" />
+
+  const filteredUsers = users.filter(u =>
+    u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.email.toLowerCase().includes(userSearch.toLowerCase())
+  )
+
+  const filteredListings = listings.filter(l =>
+    l.title.toLowerCase().includes(listingSearch.toLowerCase()) ||
+    l.seller_username.toLowerCase().includes(listingSearch.toLowerCase())
+  )
+
+  const badgeStyle = (color, bg) => ({
+    display: 'inline-block', padding: '2px 10px', borderRadius: 12,
+    fontSize: '0.75rem', fontWeight: 700, color, background: bg,
+  })
 
   return (
     <div className="page">
       <div className="container">
         <div className="page-header">
           <h1>Support Panel</h1>
-          <p>Manage disputes, reports, and user issues</p>
+          <p>Full admin control — manage users, listings, disputes, and reports</p>
         </div>
 
         {/* Stats */}
@@ -93,22 +141,24 @@ export default function SupportPanel() {
         )}
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-          <button
-            className={`btn btn-sm ${tab === 'disputes' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => { setTab('disputes'); setSelected(null) }}
-          >
-            Disputes ({disputes.filter(d => d.status === 'open' || d.status === 'under_review').length})
-          </button>
-          <button
-            className={`btn btn-sm ${tab === 'reports' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => { setTab('reports'); setSelected(null) }}
-          >
-            Reports ({reports.length})
-          </button>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+          {[
+            { key: 'disputes', label: `Disputes (${disputes.filter(d => d.status === 'open' || d.status === 'under_review').length})` },
+            { key: 'reports', label: `Reports (${reports.length})` },
+            { key: 'users', label: `Users (${users.length})` },
+            { key: 'listings', label: `Listings (${listings.length})` },
+          ].map(t => (
+            <button
+              key={t.key}
+              className={`btn btn-sm ${tab === t.key ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => { setTab(t.key); setSelected(null) }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        {/* Disputes Tab */}
+        {/* ═══ DISPUTES TAB ═══ */}
         {tab === 'disputes' && (
           <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 1fr' : '1fr', gap: 24 }}>
             <div className="card">
@@ -149,14 +199,12 @@ export default function SupportPanel() {
               </div>
             </div>
 
-            {/* Dispute Detail Panel */}
             {selected && (
               <div className="card card-body" style={{ position: 'sticky', top: 80, alignSelf: 'start' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <h3>Dispute #{selected.id}</h3>
                   <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: '1.2rem' }}>x</button>
                 </div>
-
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text3)', marginBottom: 2, textTransform: 'uppercase' }}>Order</div>
@@ -182,7 +230,6 @@ export default function SupportPanel() {
                       {selected.description}
                     </div>
                   </div>
-
                   {selected.resolution && (
                     <div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase' }}>Resolution</div>
@@ -191,17 +238,12 @@ export default function SupportPanel() {
                       </div>
                     </div>
                   )}
-
-                  {/* Admin Actions */}
                   {selected.status !== 'closed' && (
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text3)', marginBottom: 8, textTransform: 'uppercase' }}>Resolution Note</div>
                       <textarea
-                        rows={3}
-                        value={resolution}
-                        onChange={e => setResolution(e.target.value)}
-                        placeholder="Add a note about the resolution..."
-                        style={{ marginBottom: 12, width: '100%' }}
+                        rows={3} value={resolution} onChange={e => setResolution(e.target.value)}
+                        placeholder="Add a note about the resolution..." style={{ marginBottom: 12, width: '100%' }}
                       />
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {selected.status === 'open' && (
@@ -225,7 +267,6 @@ export default function SupportPanel() {
                       </div>
                     </div>
                   )}
-
                   <button className="btn btn-secondary btn-sm" style={{ marginTop: 8 }} onClick={() => navigate(`/orders/${selected.order}`)}>
                     View Order
                   </button>
@@ -235,7 +276,7 @@ export default function SupportPanel() {
           </div>
         )}
 
-        {/* Reports Tab */}
+        {/* ═══ REPORTS TAB ═══ */}
         {tab === 'reports' && (
           <div className="card">
             <div className="table-wrap">
@@ -257,7 +298,7 @@ export default function SupportPanel() {
                       <td style={{ fontSize: '0.85rem' }}>{r.reporter_username}</td>
                       <td style={{ fontSize: '0.82rem', color: 'var(--text2)' }}>{r.reason_display}</td>
                       <td style={{ fontSize: '0.82rem', color: 'var(--text3)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {r.detail || '—'}
+                        {r.detail || '\u2014'}
                       </td>
                       <td style={{ color: 'var(--text3)', fontSize: '0.82rem' }}>{new Date(r.created_at).toLocaleDateString()}</td>
                       <td>
@@ -267,6 +308,121 @@ export default function SupportPanel() {
                             onClick={() => handleDismissReport(r.id)}>
                             Dismiss
                           </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ USERS TAB ═══ */}
+        {tab === 'users' && (
+          <div className="card">
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+              <input
+                type="text" placeholder="Search users by name or email..." value={userSearch}
+                onChange={e => setUserSearch(e.target.value)}
+                style={{ width: '100%', maxWidth: 400 }}
+              />
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Username</th><th>Email</th><th>Role</th><th>Verified</th><th>Status</th><th>Joined</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--text3)' }}>No users found</td></tr>
+                  ) : filteredUsers.map(u => (
+                    <tr key={u.id}>
+                      <td style={{ fontWeight: 600 }}>{u.username}</td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--text2)' }}>{u.email}</td>
+                      <td>
+                        <span style={badgeStyle(
+                          u.role === 'admin' ? '#ef4444' : u.role === 'seller' ? 'var(--accent)' : '#3b82f6',
+                          u.role === 'admin' ? 'rgba(239,68,68,0.1)' : u.role === 'seller' ? 'rgba(255,77,0,0.1)' : 'rgba(59,130,246,0.1)'
+                        )}>
+                          {u.role.toUpperCase()}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => handleToggleUser(u.id, 'is_verified', !u.is_verified)}
+                          style={badgeStyle(
+                            u.is_verified ? 'var(--green)' : '#f59e0b',
+                            u.is_verified ? 'rgba(74,222,128,0.1)' : 'rgba(245,158,11,0.1)',
+                          )}
+                        >
+                          {u.is_verified ? 'VERIFIED' : 'UNVERIFIED'}
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => handleToggleUser(u.id, 'is_active', !u.is_active)}
+                          style={badgeStyle(
+                            u.is_active ? 'var(--green)' : '#ef4444',
+                            u.is_active ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)',
+                          )}
+                        >
+                          {u.is_active ? 'ACTIVE' : 'BANNED'}
+                        </button>
+                      </td>
+                      <td style={{ color: 'var(--text3)', fontSize: '0.82rem' }}>{new Date(u.date_joined).toLocaleDateString()}</td>
+                      <td>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDeleteUser(u.id)}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ LISTINGS TAB ═══ */}
+        {tab === 'listings' && (
+          <div className="card">
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+              <input
+                type="text" placeholder="Search listings by title or seller..." value={listingSearch}
+                onChange={e => setListingSearch(e.target.value)}
+                style={{ width: '100%', maxWidth: 400 }}
+              />
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Title</th><th>Price</th><th>Seller</th><th>Category</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {filteredListings.length === 0 ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--text3)' }}>No listings found</td></tr>
+                  ) : filteredListings.map(l => (
+                    <tr key={l.id}>
+                      <td>
+                        <span style={{ fontWeight: 600, cursor: 'pointer', color: 'var(--accent)' }} onClick={() => navigate(`/listings/${l.id}`)}>
+                          {l.title}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>${l.price}</td>
+                      <td style={{ fontSize: '0.85rem' }}>{l.seller_username}</td>
+                      <td style={{ fontSize: '0.82rem', color: 'var(--text3)' }}>{l.category || '\u2014'}</td>
+                      <td>
+                        <span style={badgeStyle(
+                          l.status === 'active' ? 'var(--green)' : l.status === 'sold' ? '#3b82f6' : 'var(--text3)',
+                          l.status === 'active' ? 'rgba(74,222,128,0.1)' : l.status === 'sold' ? 'rgba(59,130,246,0.1)' : 'var(--bg3)',
+                        )}>
+                          {l.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--text3)', fontSize: '0.82rem' }}>{new Date(l.created_at).toLocaleDateString()}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/listings/${l.id}`)}>View</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDeleteListing(l.id)}>Delete</button>
                         </div>
                       </td>
                     </tr>

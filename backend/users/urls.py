@@ -12,4 +12,8 @@ urlpatterns = [
     path('password-reset/confirm/', views.password_reset_confirm, name='password_reset_confirm'),
     path('me/', views.me, name='me'),
     path('sellers/<str:username>/', views.seller_profile, name='seller_profile'),
+    path('admin/users/', views.admin_users, name='admin_users'),
+    path('admin/users/<int:user_id>/', views.admin_user_detail, name='admin_user_detail'),
+    path('admin/listings/', views.admin_listings, name='admin_listings'),
+    path('admin/listings/<int:listing_id>/', views.admin_listing_delete, name='admin_listing_delete'),
 ]

@@ -11,6 +11,7 @@ export default function Register() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
@@ -22,17 +23,31 @@ export default function Register() {
     }
     setError(''); setLoading(true)
     try {
-      await authAPI.register(form)
-      setSuccess('Account created! Check your email to verify your account.')
+      const res = await authAPI.register(form)
+      setSuccess(res.data.message || 'Registration successful! Check your email to verify your account.')
     } catch (err) {
       const data = err.response?.data
-      if (typeof data === 'object') {
-        setError(Object.values(data).flat().join(' '))
+      if (data && typeof data === 'object') {
+        const messages = Object.values(data).flat()
+        setError(messages.join(' '))
       } else {
-        setError('Registration failed.')
+        setError('Registration failed. Please try again.')
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    if (!form.email) return
+    setResending(true)
+    try {
+      await authAPI.resendVerification(form.email)
+      setSuccess('Verification email resent! Please check your inbox.')
+    } catch {
+      setError('Failed to resend verification email.')
+    } finally {
+      setResending(false)
     }
   }
 
@@ -49,8 +64,11 @@ export default function Register() {
           {success ? (
             <div className="alert alert-success">
               {success}
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 16, display: 'flex', gap: 8, flexDirection: 'column' }}>
                 <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => navigate('/login')}>Go to Login</button>
+                <button className="btn btn-secondary" style={{ width: '100%' }} onClick={handleResend} disabled={resending}>
+                  {resending ? 'Resending...' : 'Resend Verification Email'}
+                </button>
               </div>
             </div>
           ) : (
