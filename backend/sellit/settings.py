@@ -123,15 +123,19 @@ CORS_ALLOW_ALL_ORIGINS = True
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
-# Email
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
-EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-EMAIL_TIMEOUT = 5  # seconds — fail fast if SMTP is blocked
-DEFAULT_FROM_EMAIL = config('EMAIL_HOST_USER', default='noreply@sellit.com')
+# Email — uses Brevo HTTP API (SMTP is blocked on Render)
+BREVO_API_KEY = config('BREVO_API_KEY', default='')
+if BREVO_API_KEY:
+    EMAIL_BACKEND = 'notifications.brevo_backend.BrevoEmailBackend'
+else:
+    EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+    EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+    EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+    EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+    EMAIL_TIMEOUT = 5
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='jilspatel141204@gmail.com')
 
 FRONTEND_URL = config('FRONTEND_URL', default='https://marketplace-seven-mu.vercel.app')
 
