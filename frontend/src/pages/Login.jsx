@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { authAPI } from '../api'
 
 export default function Login() {
   const { login } = useAuth()
@@ -8,18 +9,41 @@ export default function Login() {
   const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError(''); setLoading(true)
+    setError(''); setNeedsVerification(false); setLoading(true)
     try {
       const user = await login(form.username, form.password)
       if (user.role === 'seller') navigate('/seller/dashboard')
       else navigate('/')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Invalid credentials.')
+      const msg = err.response?.data?.detail
+      const allErrors = err.response?.data
+      // Check if the error is about email verification
+      const errorText = typeof allErrors === 'object' ? JSON.stringify(allErrors) : String(msg || '')
+      if (errorText.toLowerCase().includes('verify your email')) {
+        setNeedsVerification(true)
+        setError('Please verify your email before logging in. Check your inbox for the verification link.')
+      } else {
+        setError(msg || 'Invalid credentials.')
+      }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    const email = window.prompt('Enter your email address to resend verification:')
+    if (!email) return
+    try {
+      await authAPI.resendVerification(email)
+      setError('')
+      setNeedsVerification(false)
+      alert('Verification email sent! Check your inbox.')
+    } catch {
+      alert('Failed to send verification email. Try again.')
     }
   }
 
@@ -32,7 +56,16 @@ export default function Login() {
           <p style={{ color: 'var(--text2)', marginTop: 6 }}>Sign in to your account</p>
         </div>
         <div className="card card-body">
-          {error && <div className="alert alert-error">{error}</div>}
+          {error && (
+            <div className="alert alert-error">
+              {error}
+              {needsVerification && (
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={handleResend}>Resend Verification Email</button>
+                </div>
+              )}
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>Username</label>

@@ -162,6 +162,11 @@ export const adminAPI = {
   stats: () => api.get('/api/orders/admin/stats/'),
   reports: () => api.get('/api/listings/admin/reports/'),
   deleteReport: (id) => api.delete(`/api/listings/admin/reports/${id}/`),
+  users: () => api.get('/api/auth/admin/users/'),
+  deleteUser: (id) => api.delete(`/api/auth/admin/users/${id}/`),
+  updateUser: (id, data) => api.patch(`/api/auth/admin/users/${id}/`, data),
+  listings: () => api.get('/api/auth/admin/listings/'),
+  deleteListing: (id) => api.delete(`/api/auth/admin/listings/${id}/`),
 }
 
 export default api

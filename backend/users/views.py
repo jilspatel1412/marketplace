@@ -21,8 +21,18 @@ from .serializers import (
 )
 
 
+class VerifiedTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if not self.user.is_verified:
+            raise drf_serializers.ValidationError(
+                'Please verify your email before logging in. Check your inbox for the verification link.'
+            )
+        return data
+
+
 class VerifiedTokenObtainPairView(TokenObtainPairView):
-    pass  # Login works without email verification
+    serializer_class = VerifiedTokenObtainPairSerializer
 
 User = get_user_model()
 
@@ -64,7 +74,8 @@ def _send_verification_email(user):
 @permission_classes([AllowAny])
 def register(request):
     email = request.data.get('email', '').strip()
-    # If an unverified user with this email exists, resend verification instead of blocking
+
+    # If an unverified user with this email exists, resend verification
     if email:
         try:
             existing = User.objects.get(email=email, is_verified=False)
@@ -75,7 +86,10 @@ def register(request):
                 _send_verification_email(existing)
             except Exception:
                 logger.exception('Failed to resend verification email to %s', email)
-            return Response({'message': 'A verification email has been resent. Please check your inbox.'}, status=status.HTTP_200_OK)
+            return Response({
+                'message': 'A verification email has been sent. Please check your inbox.',
+                'requires_verification': True,
+            }, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             pass
 
@@ -83,16 +97,18 @@ def register(request):
     if not serializer.is_valid():
         logger.warning('Registration validation failed: %s', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    try:
-        user = serializer.save()
-    except Exception:
-        logger.exception('Registration save failed')
-        return Response({'error': 'Registration failed. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    user = serializer.save()
+
     try:
         _send_verification_email(user)
     except Exception:
         logger.exception('Failed to send verification email to %s', user.email)
-    return Response({'message': 'Registration successful. Please check your email to verify your account.'}, status=status.HTTP_201_CREATED)
+
+    return Response({
+        'message': 'Registration successful! Please check your email to verify your account.',
+        'requires_verification': True,
+    }, status=status.HTTP_201_CREATED)
 
 
 
@@ -211,6 +227,97 @@ def seller_profile(request, username):
         'listings': ListingSerializer(active_listings, many=True, context={'request': request}).data,
         'reviews': ReviewSerializer(reviews_qs, many=True).data,
     })
+
+
+def _is_admin(user):
+    return user.is_staff or user.role == 'admin'
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_users(request):
+    if not _is_admin(request.user):
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+    users = User.objects.all().order_by('-date_joined')
+    data = []
+    for u in users:
+        data.append({
+            'id': u.id,
+            'username': u.username,
+            'email': u.email,
+            'role': u.role,
+            'is_verified': u.is_verified,
+            'is_active': u.is_active,
+            'date_joined': u.date_joined,
+        })
+    return Response(data)
+
+
+@api_view(['DELETE', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def admin_user_detail(request, user_id):
+    if not _is_admin(request.user):
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        target = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if target.pk == request.user.pk:
+        return Response({'error': 'You cannot modify your own account here.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        target.delete()
+        return Response({'message': 'User deleted.'}, status=status.HTTP_204_NO_CONTENT)
+
+    # PATCH — toggle active, verify, change role
+    if 'is_active' in request.data:
+        target.is_active = request.data['is_active']
+    if 'is_verified' in request.data:
+        target.is_verified = request.data['is_verified']
+    if 'role' in request.data and request.data['role'] in ('buyer', 'seller', 'admin'):
+        target.role = request.data['role']
+    target.save()
+    return Response({
+        'id': target.id, 'username': target.username, 'email': target.email,
+        'role': target.role, 'is_verified': target.is_verified, 'is_active': target.is_active,
+        'date_joined': target.date_joined,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_listings(request):
+    if not _is_admin(request.user):
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+    from listings.models import Listing
+    listings = Listing.objects.select_related('seller', 'category').order_by('-created_at')
+    data = []
+    for l in listings:
+        data.append({
+            'id': l.id,
+            'title': l.title,
+            'price': str(l.price),
+            'status': l.status,
+            'seller_username': l.seller.username,
+            'category': l.category.name if l.category else None,
+            'created_at': l.created_at,
+        })
+    return Response(data)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_listing_delete(request, listing_id):
+    if not _is_admin(request.user):
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+    from listings.models import Listing
+    try:
+        listing = Listing.objects.get(pk=listing_id)
+    except Listing.DoesNotExist:
+        return Response({'error': 'Listing not found.'}, status=status.HTTP_404_NOT_FOUND)
+    listing.delete()
+    return Response({'message': 'Listing deleted.'}, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET', 'PATCH'])
