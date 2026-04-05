@@ -130,6 +130,7 @@ EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_TIMEOUT = 5  # seconds — fail fast if SMTP is blocked
 DEFAULT_FROM_EMAIL = config('EMAIL_HOST_USER', default='noreply@sellit.com')
 
 FRONTEND_URL = config('FRONTEND_URL', default='https://marketplace-seven-mu.vercel.app')
