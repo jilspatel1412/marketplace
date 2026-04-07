@@ -124,6 +124,10 @@ export default function Checkout() {
           </div>
         )}
 
+        <div className="alert alert-info" style={{ fontSize: '0.85rem' }}>
+          <strong>Buyer Protection:</strong> Your payment is held in escrow until you confirm delivery. You have 7 days after delivery to open a dispute if there's an issue.
+        </div>
+
         <div className="card card-body">
           {clientSecret && (
             <Elements stripe={stripePromise} options={{ clientSecret }}>

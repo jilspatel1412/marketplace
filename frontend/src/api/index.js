@@ -55,6 +55,10 @@ export const authAPI = {
   passwordResetConfirm: (data) => api.post('/api/auth/password-reset/confirm/', data),
   me: () => api.get('/api/auth/me/'),
   updateMe: (data) => api.patch('/api/auth/me/', data),
+  login2fa: (data) => api.post('/api/auth/login/2fa/', data),
+  setup2fa: () => api.post('/api/auth/2fa/setup/'),
+  verify2fa: (code) => api.post('/api/auth/2fa/verify/', { code }),
+  disable2fa: (code) => api.post('/api/auth/2fa/disable/', { code }),
 }
 
 // ─── Categories ────────────────────────────────────────────────────────────
@@ -129,6 +133,10 @@ export const searchAlertAPI = {
 // ─── Users ─────────────────────────────────────────────────────────────────
 export const userAPI = {
   sellerProfile: (username) => api.get(`/api/auth/sellers/${username}/`),
+  reputation: (userId) => api.get(`/api/auth/users/${userId}/reputation/`),
+  block: (userId) => api.post(`/api/auth/users/${userId}/block/`),
+  unblock: (userId) => api.delete(`/api/auth/users/${userId}/unblock/`),
+  blockedList: () => api.get('/api/auth/blocked/'),
 }
 
 // ─── Notifications ──────────────────────────────────────────────────────────
@@ -167,6 +175,7 @@ export const adminAPI = {
   updateUser: (id, data) => api.patch(`/api/auth/admin/users/${id}/`, data),
   listings: () => api.get('/api/auth/admin/listings/'),
   deleteListing: (id) => api.delete(`/api/auth/admin/listings/${id}/`),
+  activityLogs: (userId) => api.get('/api/auth/admin/activity-logs/', { params: userId ? { user_id: userId } : {} }),
 }
 
 export default api

@@ -29,6 +29,7 @@ function StarPicker({ value, onChange }) {
 function ReviewModal({ order, onClose, onSubmit }) {
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
+  const [images, setImages] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -36,7 +37,13 @@ function ReviewModal({ order, onClose, onSubmit }) {
     e.preventDefault()
     setLoading(true); setError('')
     try {
-      await orderAPI.createReview(order.id, { rating, comment })
+      const formData = new FormData()
+      formData.append('rating', rating)
+      formData.append('comment', comment)
+      images.forEach(img => formData.append('images', img))
+      await api.post(`/api/orders/${order.id}/review/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       onSubmit()
     } catch (err) {
       setError(err.response?.data?.error || 'Could not submit review.')
@@ -59,6 +66,21 @@ function ReviewModal({ order, onClose, onSubmit }) {
           <div className="form-group">
             <label>Comment (optional)</label>
             <textarea rows={3} value={comment} onChange={e => setComment(e.target.value)} placeholder="Share your experience..." />
+          </div>
+          <div className="form-group">
+            <label>Photos (up to 3)</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={e => setImages([...e.target.files].slice(0, 3))}
+              style={{ fontSize: '0.85rem' }}
+            />
+            {images.length > 0 && (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text3)', marginTop: 4 }}>
+                {images.length} photo{images.length > 1 ? 's' : ''} selected
+              </div>
+            )}
           </div>
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
@@ -130,6 +152,32 @@ function DisputeModal({ order, onClose, onSubmit }) {
   )
 }
 
+const STATUS_COLOR = {
+  pending_payment: 'var(--yellow)',
+  paid: 'var(--green)',
+  shipped: '#3b82f6',
+  delivered: 'var(--green)',
+  cancelled: 'var(--red)',
+}
+
+const ESCROW_COLOR = {
+  pending: 'var(--text3)',
+  held: 'var(--yellow)',
+  released: 'var(--green)',
+  refunded: '#3b82f6',
+  disputed: 'var(--red)',
+}
+
+function formatTimeLeft(expiresAt) {
+  if (!expiresAt) return null
+  const diff = new Date(expiresAt) - new Date()
+  if (diff <= 0) return 'Expired'
+  const days = Math.floor(diff / 86400000)
+  const hours = Math.floor((diff % 86400000) / 3600000)
+  if (days > 0) return `${days}d ${hours}h left`
+  return `${hours}h left`
+}
+
 export default function BuyerOrders() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
@@ -148,14 +196,6 @@ export default function BuyerOrders() {
     } catch (err) {
       alert(err.response?.data?.error || 'Could not update status.')
     }
-  }
-
-  const STATUS_COLOR = {
-    pending_payment: 'var(--yellow)',
-    paid: 'var(--green)',
-    shipped: '#3b82f6',
-    delivered: 'var(--green)',
-    cancelled: 'var(--red)',
   }
 
   return (
@@ -205,7 +245,7 @@ export default function BuyerOrders() {
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>#</th><th>Item</th><th>Seller</th><th>Amount</th><th>Status</th><th>Tracking</th><th>Date</th><th></th></tr>
+                  <tr><th>#</th><th>Item</th><th>Seller</th><th>Amount</th><th>Status</th><th>Protection</th><th>Tracking</th><th>Date</th><th></th></tr>
                 </thead>
                 <tbody>
                   {orders.map(o => (
@@ -218,6 +258,23 @@ export default function BuyerOrders() {
                         <span style={{ color: STATUS_COLOR[o.status] || 'var(--text2)', fontWeight: 600, fontSize: '0.85rem', textTransform: 'capitalize' }}>
                           {o.status.replace('_', ' ')}
                         </span>
+                      </td>
+                      <td style={{ fontSize: '0.78rem' }}>
+                        {o.escrow_status && o.escrow_status !== 'pending' && (
+                          <div>
+                            <span style={{ color: ESCROW_COLOR[o.escrow_status], fontWeight: 600, textTransform: 'capitalize' }}>
+                              {o.escrow_status_display || o.escrow_status}
+                            </span>
+                            {o.escrow_status === 'held' && o.protection_expires_at && (
+                              <div style={{ color: 'var(--text3)', marginTop: 2 }}>
+                                {formatTimeLeft(o.protection_expires_at)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {(!o.escrow_status || o.escrow_status === 'pending') && (
+                          <span style={{ color: 'var(--text3)' }}>—</span>
+                        )}
                       </td>
                       <td style={{ fontSize: '0.82rem', color: o.tracking_number ? 'var(--text)' : 'var(--text3)' }}>
                         {o.tracking_number || '—'}

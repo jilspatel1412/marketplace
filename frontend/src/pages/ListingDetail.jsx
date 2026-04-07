@@ -384,13 +384,29 @@ export default function ListingDetail() {
                 </button>
               )}
 
+              {/* Share buttons */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out "${listing.title}" on SellIt — $${listing.price}`)}&url=${encodeURIComponent(window.location.href)}`}
+                  target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm" style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem' }}>
+                  Twitter
+                </a>
+                <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
+                  target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm" style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem' }}>
+                  Facebook
+                </a>
+                <button className="btn btn-secondary btn-sm" style={{ flex: 1, fontSize: '0.75rem' }}
+                  onClick={() => { navigator.clipboard.writeText(window.location.href); alert('Link copied!') }}>
+                  Copy Link
+                </button>
+              </div>
+
               {/* Report button */}
               {!isSeller && user && (
                 <button
                   onClick={() => setShowReport(true)}
                   style={{ width: '100%', marginTop: 8, background: 'none', border: 'none', color: 'var(--text3)', fontSize: '0.78rem', cursor: 'pointer', padding: '4px 0' }}
                 >
-                  🚩 Report this listing
+                  Report this listing
                 </button>
               )}
             </div>

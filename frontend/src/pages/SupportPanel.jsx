@@ -32,6 +32,7 @@ export default function SupportPanel() {
   const [updating, setUpdating] = useState(false)
   const [userSearch, setUserSearch] = useState('')
   const [listingSearch, setListingSearch] = useState('')
+  const [activityLogs, setActivityLogs] = useState([])
 
   useEffect(() => {
     setLoading(true)
@@ -132,7 +133,7 @@ export default function SupportPanel() {
               { label: 'Users', value: stats.total_users, color: '#3b82f6' },
               { label: 'Active Listings', value: stats.total_listings, color: 'var(--green)' },
             ].map(s => (
-              <div key={s.label} className="card card-body" style={{ textAlign: 'center', padding: '16px 12px' }}>
+              <div key={s.label} className="card card-body card-static" style={{ textAlign: 'center', padding: '16px 12px' }}>
                 <div style={{ fontSize: '1.6rem', fontWeight: 800, color: s.color, fontFamily: 'var(--font-display)' }}>{s.value}</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text3)', marginTop: 4 }}>{s.label}</div>
               </div>
@@ -147,6 +148,7 @@ export default function SupportPanel() {
             { key: 'reports', label: `Reports (${reports.length})` },
             { key: 'users', label: `Users (${users.length})` },
             { key: 'listings', label: `Listings (${listings.length})` },
+            { key: 'activity', label: 'Activity Logs' },
           ].map(t => (
             <button
               key={t.key}
@@ -160,10 +162,10 @@ export default function SupportPanel() {
 
         {/* ═══ DISPUTES TAB ═══ */}
         {tab === 'disputes' && (
-          <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 1fr' : '1fr', gap: 24 }}>
-            <div className="card">
+          <div className="support-dispute-grid" style={{ display: 'grid', gridTemplateColumns: selected ? '5fr 3fr' : '1fr', gap: 24 }}>
+            <div className="card card-static">
               <div className="table-wrap">
-                <table>
+                <table style={{ minWidth: 640 }}>
                   <thead>
                     <tr><th>#</th><th>Order</th><th>Opened By</th><th>Reason</th><th>Status</th><th>Date</th><th></th></tr>
                   </thead>
@@ -278,11 +280,11 @@ export default function SupportPanel() {
 
         {/* ═══ REPORTS TAB ═══ */}
         {tab === 'reports' && (
-          <div className="card">
+          <div className="card card-static">
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Listing</th><th>Seller</th><th>Reported By</th><th>Reason</th><th>Detail</th><th>Date</th><th></th></tr>
+                  <tr><th>Listing</th><th>Seller</th><th>Reporter</th><th>Reason</th><th>Detail</th><th>Date</th><th></th></tr>
                 </thead>
                 <tbody>
                   {reports.length === 0 ? (
@@ -320,7 +322,7 @@ export default function SupportPanel() {
 
         {/* ═══ USERS TAB ═══ */}
         {tab === 'users' && (
-          <div className="card">
+          <div className="card card-static">
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
               <input
                 type="text" placeholder="Search users by name or email..." value={userSearch}
@@ -384,7 +386,7 @@ export default function SupportPanel() {
 
         {/* ═══ LISTINGS TAB ═══ */}
         {tab === 'listings' && (
-          <div className="card">
+          <div className="card card-static">
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
               <input
                 type="text" placeholder="Search listings by title or seller..." value={listingSearch}
@@ -425,6 +427,48 @@ export default function SupportPanel() {
                           <button className="btn btn-danger btn-sm" onClick={() => handleDeleteListing(l.id)}>Delete</button>
                         </div>
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ ACTIVITY LOGS TAB ═══ */}
+        {tab === 'activity' && (
+          <div className="card card-static">
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button className="btn btn-primary btn-sm" onClick={() => {
+                adminAPI.activityLogs().then(res => setActivityLogs(res.data)).catch(() => {})
+              }}>
+                Load Logs
+              </button>
+              <span style={{ fontSize: '0.82rem', color: 'var(--text3)' }}>
+                {activityLogs.length > 0 ? `${activityLogs.length} entries` : 'Click to load recent activity'}
+              </span>
+            </div>
+            <div className="table-wrap">
+              <table style={{ minWidth: 600 }}>
+                <thead>
+                  <tr><th>User</th><th>Action</th><th>IP Address</th><th>Time</th></tr>
+                </thead>
+                <tbody>
+                  {activityLogs.length === 0 ? (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: 32, color: 'var(--text3)' }}>No logs loaded</td></tr>
+                  ) : activityLogs.map(log => (
+                    <tr key={log.id}>
+                      <td style={{ fontWeight: 600 }}>{log.username}</td>
+                      <td>
+                        <span style={badgeStyle(
+                          log.action === 'login' ? 'var(--green)' : log.action === 'login_failed' ? 'var(--red)' : '#3b82f6',
+                          log.action === 'login' ? 'rgba(74,222,128,0.1)' : log.action === 'login_failed' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)'
+                        )}>
+                          {log.action.replace(/_/g, ' ').toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '0.82rem', color: 'var(--text2)', fontFamily: 'monospace' }}>{log.ip_address || '—'}</td>
+                      <td style={{ color: 'var(--text3)', fontSize: '0.82rem' }}>{new Date(log.created_at).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>

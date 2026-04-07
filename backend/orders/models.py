@@ -10,6 +10,13 @@ class Order(models.Model):
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
     ]
+    ESCROW_CHOICES = [
+        ('pending', 'Pending'),
+        ('held', 'Held in Escrow'),
+        ('released', 'Released to Seller'),
+        ('refunded', 'Refunded to Buyer'),
+        ('disputed', 'Frozen — Dispute Active'),
+    ]
 
     listing = models.ForeignKey('listings.Listing', on_delete=models.SET_NULL, null=True, related_name='orders')
     buyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='orders_as_buyer')
@@ -17,7 +24,10 @@ class Order(models.Model):
     offer = models.ForeignKey('listings.Offer', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     total_amount = models.DecimalField(max_digits=12, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_payment')
+    escrow_status = models.CharField(max_length=10, choices=ESCROW_CHOICES, default='pending')
     tracking_number = models.CharField(max_length=100, blank=True, default='')
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    protection_expires_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -95,6 +105,19 @@ class Dispute(models.Model):
 
     def __str__(self):
         return f'Dispute #{self.id} on Order #{self.order_id} ({self.status})'
+
+
+class ReviewImage(models.Model):
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='reviews/')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'review_images'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'Image for review #{self.review_id}'
 
 
 class Receipt(models.Model):
