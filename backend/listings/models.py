@@ -39,6 +39,8 @@ class Listing(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active', db_index=True)
     auction_end_time = models.DateTimeField(null=True, blank=True)
     current_bid = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    is_flagged = models.BooleanField(default=False)
+    flagged_reason = models.CharField(max_length=255, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 

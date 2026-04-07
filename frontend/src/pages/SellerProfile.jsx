@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { userAPI } from '../api'
 import ListingCard from '../components/ListingCard'
 
@@ -16,8 +17,10 @@ function Stars({ rating }) {
 export default function SellerProfile() {
   const { username } = useParams()
   const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [blocking, setBlocking] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -26,6 +29,17 @@ export default function SellerProfile() {
       .catch(() => navigate('/listings'))
       .finally(() => setLoading(false))
   }, [username])
+
+  const handleBlock = async () => {
+    if (!data) return
+    setBlocking(true)
+    try {
+      await userAPI.block(data.id)
+      alert(`${data.username} has been blocked.`)
+    } catch (err) {
+      alert(err.response?.data?.error || 'Could not block user.')
+    } finally { setBlocking(false) }
+  }
 
   if (loading) return <div className="spinner" />
   if (!data) return null
@@ -41,7 +55,13 @@ export default function SellerProfile() {
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h1 style={{ fontSize: '1.5rem', marginBottom: 0 }}>{data.username}</h1>
-              {data.is_verified && <span className="badge badge-active">✓ Verified</span>}
+              {data.is_verified && <span className="badge badge-active">Verified</span>}
+              {currentUser && currentUser.id !== data.id && (
+                <button className="btn btn-sm" onClick={handleBlock} disabled={blocking}
+                  style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', fontSize: '0.72rem' }}>
+                  {blocking ? '...' : 'Block'}
+                </button>
+              )}
             </div>
             {data.avg_rating ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0' }}>
@@ -88,6 +108,14 @@ export default function SellerProfile() {
                     </span>
                   </div>
                   {r.comment && <p style={{ color: 'var(--text2)', fontSize: '0.88rem', margin: 0 }}>{r.comment}</p>}
+                  {r.images && r.images.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      {r.images.map(img => (
+                        <img key={img.id} src={img.image_url} alt="Review"
+                          style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

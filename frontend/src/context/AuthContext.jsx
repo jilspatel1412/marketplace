@@ -33,6 +33,15 @@ export function AuthProvider({ children }) {
     return me.data
   }
 
+  const loginWith2fa = async (username, password, code) => {
+    const { data } = await authAPI.login2fa({ username, password, code })
+    localStorage.setItem('access_token', data.access)
+    localStorage.setItem('refresh_token', data.refresh)
+    const me = await authAPI.me()
+    setUser(me.data)
+    return me.data
+  }
+
   const logout = () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
@@ -46,7 +55,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWith2fa, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

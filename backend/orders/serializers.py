@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Order, Payment, Receipt, Review, Dispute
+from .models import Order, Payment, Receipt, Review, ReviewImage, Dispute
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -14,12 +14,26 @@ class ReceiptSerializer(serializers.ModelSerializer):
         fields = ('id', 'issued_at', 'pdf_url')
 
 
+class ReviewImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReviewImage
+        fields = ('id', 'image_url', 'created_at')
+
+    def get_image_url(self, obj):
+        if obj.image and hasattr(obj.image, 'url'):
+            return obj.image.url
+        return None
+
+
 class ReviewSerializer(serializers.ModelSerializer):
     reviewer_username = serializers.CharField(source='reviewer.username', read_only=True)
+    images = ReviewImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Review
-        fields = ('id', 'order', 'reviewer', 'reviewer_username', 'seller', 'rating', 'comment', 'created_at')
+        fields = ('id', 'order', 'reviewer', 'reviewer_username', 'seller', 'rating', 'comment', 'images', 'created_at')
         read_only_fields = ('id', 'created_at', 'reviewer', 'seller', 'order')
 
 
@@ -47,11 +61,15 @@ class OrderSerializer(serializers.ModelSerializer):
     def get_has_review(self, obj):
         return hasattr(obj, 'review')
 
+    escrow_status_display = serializers.CharField(source='get_escrow_status_display', read_only=True)
+
     class Meta:
         model = Order
         fields = (
             'id', 'listing', 'listing_title', 'buyer', 'buyer_username',
             'seller', 'seller_username', 'offer', 'total_amount', 'status',
-            'tracking_number', 'payment', 'receipt', 'review', 'has_review', 'created_at'
+            'escrow_status', 'escrow_status_display', 'tracking_number',
+            'delivered_at', 'protection_expires_at',
+            'payment', 'receipt', 'review', 'has_review', 'created_at'
         )
         read_only_fields = ('id', 'created_at')

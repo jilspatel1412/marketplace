@@ -8,13 +8,17 @@ logger = logging.getLogger(__name__)
 from django.db.models import Q, Avg, Count, Exists, OuterRef, BooleanField, Value
 from django.utils import timezone
 from rest_framework import status, generics
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes, throttle_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
+from .moderation import check_listing
+from .throttles import ListingCreateThrottle
+
 from notifications.utils import send_email, create_notification
 from orders.models import Order, Payment
+from users.models import BlockedUser
 from .models import Category, Listing, ListingImage, Offer, Bid, SearchLog, UserInteraction, ListingReport, SearchAlert
 from .serializers import (
     CategorySerializer, ListingSerializer, ListingCreateSerializer,
@@ -118,9 +122,24 @@ def listing_list_create(request):
     if request.user.role != 'seller':
         return Response({'error': 'Only sellers can create listings.'}, status=status.HTTP_403_FORBIDDEN)
 
+    # Rate limit listing creation
+    throttle = ListingCreateThrottle()
+    if not throttle.allow_request(request, None):
+        return Response(
+            {'error': 'Too many listings created. Please wait before creating more.'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     serializer = ListingCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     listing = serializer.save(seller=request.user)
+
+    # Content moderation check
+    flagged, reason = check_listing(listing)
+    if flagged:
+        listing.is_flagged = True
+        listing.flagged_reason = reason
+        listing.save(update_fields=['is_flagged', 'flagged_reason'])
 
     # Fire matching search alerts
     if listing.status == 'active':
@@ -189,6 +208,13 @@ def listing_detail(request, pk):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         serializer.instance.refresh_from_db()
+
+        # Re-run content moderation on edit
+        flagged, reason = check_listing(serializer.instance)
+        if flagged and not serializer.instance.is_flagged:
+            serializer.instance.is_flagged = True
+            serializer.instance.flagged_reason = reason
+            serializer.instance.save(update_fields=['is_flagged', 'flagged_reason'])
 
         # Price drop notification: notify all users who favourited this listing
         new_price = serializer.instance.price
@@ -298,6 +324,8 @@ def offer_list_create(request, pk):
         return Response({'error': 'You cannot offer on your own listing.'}, status=status.HTTP_400_BAD_REQUEST)
     if listing.is_auction:
         return Response({'error': 'Use bidding for auction listings.'}, status=status.HTTP_400_BAD_REQUEST)
+    if BlockedUser.objects.filter(blocker=listing.seller, blocked=request.user).exists():
+        return Response({'error': 'You cannot make offers to this seller.'}, status=status.HTTP_403_FORBIDDEN)
 
     # Check for existing pending offer
     if Offer.objects.filter(listing=listing, buyer=request.user, status='PENDING').exists():
@@ -601,6 +629,8 @@ def buy_now(request, pk):
         return Response({'error': 'You cannot buy your own listing.'}, status=status.HTTP_400_BAD_REQUEST)
     if listing.is_auction:
         return Response({'error': 'Use bidding for auction listings.'}, status=status.HTTP_400_BAD_REQUEST)
+    if BlockedUser.objects.filter(blocker=listing.seller, blocked=request.user).exists():
+        return Response({'error': 'You cannot purchase from this seller.'}, status=status.HTTP_403_FORBIDDEN)
 
     with transaction.atomic():
         # Re-fetch with lock to prevent two buyers purchasing the same listing simultaneously
@@ -745,6 +775,21 @@ def report_listing(request, pk):
     )
     if not created:
         return Response({'error': 'You have already reported this listing.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Auto-escalation: hide listing after threshold reports
+    threshold = getattr(django_settings, 'REPORT_AUTO_HIDE_THRESHOLD', 3)
+    report_count = ListingReport.objects.filter(listing=listing).count()
+    if report_count >= threshold and listing.status == 'active':
+        listing.status = 'closed'
+        listing.is_flagged = True
+        listing.flagged_reason = f'Auto-hidden: {report_count} reports received'
+        listing.save(update_fields=['status', 'is_flagged', 'flagged_reason'])
+        create_notification(
+            listing.seller, 'listing_flagged',
+            f'Your listing "{listing.title}" has been hidden',
+            f'It received {report_count} reports and was automatically hidden pending admin review.',
+            f'/listings/{listing.id}'
+        )
 
     return Response({'status': 'Report submitted. Thanks for letting us know.'}, status=status.HTTP_201_CREATED)
 

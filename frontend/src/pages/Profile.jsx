@@ -18,6 +18,13 @@ export default function Profile() {
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
 
+  // 2FA state
+  const [show2faSetup, setShow2faSetup] = useState(false)
+  const [qrData, setQrData] = useState(null)
+  const [totpCode, setTotpCode] = useState('')
+  const [twoFaLoading, setTwoFaLoading] = useState(false)
+  const [disableCode, setDisableCode] = useState('')
+
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
   const handleSubmit = async (e) => {
@@ -125,6 +132,112 @@ export default function Profile() {
               {saving ? 'Saving...' : 'Save Profile'}
             </button>
           </form>
+        </div>
+
+        {/* 2FA Section */}
+        <div className="card card-body" style={{ marginTop: 24 }}>
+          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>
+            Two-Factor Authentication
+          </div>
+
+          {user?.is_2fa_enabled ? (
+            <div>
+              <div className="alert alert-success" style={{ marginBottom: 16 }}>
+                2FA is <strong>enabled</strong>. Your account is protected.
+              </div>
+              <div className="form-group">
+                <label>Enter TOTP code to disable</label>
+                <input
+                  value={disableCode}
+                  onChange={e => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000" maxLength={6}
+                  style={{ maxWidth: 200, textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.2em' }}
+                />
+              </div>
+              <button
+                className="btn btn-danger btn-sm"
+                disabled={twoFaLoading || disableCode.length < 6}
+                onClick={async () => {
+                  setTwoFaLoading(true); setError('')
+                  try {
+                    await authAPI.disable2fa(disableCode)
+                    await refreshUser()
+                    setSuccess('2FA disabled.')
+                    setDisableCode('')
+                  } catch (err) {
+                    setError(err.response?.data?.error || 'Failed to disable 2FA.')
+                  } finally { setTwoFaLoading(false) }
+                }}
+              >
+                {twoFaLoading ? 'Disabling...' : 'Disable 2FA'}
+              </button>
+            </div>
+          ) : show2faSetup && qrData ? (
+            <div>
+              <p style={{ color: 'var(--text2)', fontSize: '0.9rem', marginBottom: 16 }}>
+                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):
+              </p>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <img src={qrData.qr_code} alt="2FA QR Code" style={{ width: 200, height: 200, imageRendering: 'pixelated' }} />
+              </div>
+              <div style={{ background: 'var(--bg3)', padding: '8px 12px', borderRadius: 'var(--radius)', fontSize: '0.8rem', color: 'var(--text2)', marginBottom: 16, wordBreak: 'break-all' }}>
+                <strong>Manual key:</strong> {qrData.secret}
+              </div>
+              <div className="form-group">
+                <label>Enter the 6-digit code from your app</label>
+                <input
+                  value={totpCode}
+                  onChange={e => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000" maxLength={6}
+                  style={{ maxWidth: 200, textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.2em' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={twoFaLoading || totpCode.length < 6}
+                  onClick={async () => {
+                    setTwoFaLoading(true); setError('')
+                    try {
+                      await authAPI.verify2fa(totpCode)
+                      await refreshUser()
+                      setSuccess('2FA enabled successfully!')
+                      setShow2faSetup(false); setQrData(null); setTotpCode('')
+                    } catch (err) {
+                      setError(err.response?.data?.error || 'Invalid code.')
+                    } finally { setTwoFaLoading(false) }
+                  }}
+                >
+                  {twoFaLoading ? 'Verifying...' : 'Verify & Enable'}
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => { setShow2faSetup(false); setQrData(null); setTotpCode('') }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p style={{ color: 'var(--text2)', fontSize: '0.9rem', marginBottom: 16 }}>
+                Add an extra layer of security to your account with a time-based one-time password (TOTP).
+              </p>
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={twoFaLoading}
+                onClick={async () => {
+                  setTwoFaLoading(true); setError('')
+                  try {
+                    const res = await authAPI.setup2fa()
+                    setQrData(res.data)
+                    setShow2faSetup(true)
+                  } catch (err) {
+                    setError(err.response?.data?.error || 'Failed to setup 2FA.')
+                  } finally { setTwoFaLoading(false) }
+                }}
+              >
+                {twoFaLoading ? 'Loading...' : 'Enable 2FA'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

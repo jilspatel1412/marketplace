@@ -3,6 +3,7 @@ import logging
 import stripe
 import json
 from django.conf import settings
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 from django.db import models
@@ -10,7 +11,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.http import HttpResponse
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.http import FileResponse
@@ -20,7 +22,7 @@ from reportlab.lib import colors
 from reportlab.pdfgen import canvas as rl_canvas
 
 from notifications.utils import send_email, create_notification
-from .models import Order, Payment, Receipt, Review, Dispute
+from .models import Order, Payment, Receipt, Review, ReviewImage, Dispute
 from .serializers import OrderSerializer, ReviewSerializer, DisputeSerializer
 
 
@@ -145,6 +147,7 @@ def stripe_webhook(request):
 
             order = payment.order
             order.status = 'paid'
+            order.escrow_status = 'held'
             order.save()
 
             # Create receipt
@@ -437,13 +440,27 @@ def update_order_status(request, order_id):
             return Response({'error': 'Only the buyer can mark as delivered.'}, status=status.HTTP_403_FORBIDDEN)
         if order.status != 'shipped':
             return Response({'error': 'Order must be shipped before marking delivered.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from datetime import timedelta
+        protection_days = getattr(settings, 'PURCHASE_PROTECTION_DAYS', 7)
+        now = timezone.now()
+
         order.status = 'delivered'
-        order.save()
+        order.delivered_at = now
+        order.protection_expires_at = now + timedelta(days=protection_days)
+        order.save(update_fields=['status', 'delivered_at', 'protection_expires_at'])
+
         create_notification(
             order.seller, 'order_delivered',
             f'"{order.listing.title}" was delivered',
-            f'{order.buyer.username} confirmed delivery.',
+            f'{order.buyer.username} confirmed delivery. Funds will be released in {protection_days} days.',
             '/seller/orders'
+        )
+        create_notification(
+            order.buyer, 'order_delivered',
+            f'Delivery confirmed — purchase protection active',
+            f'You have {protection_days} days to open a dispute if there\'s an issue.',
+            '/buyer/orders'
         )
 
     else:
@@ -456,6 +473,7 @@ def update_order_status(request, order_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def create_review(request, order_id):
     try:
         order = Order.objects.select_related('buyer', 'seller', 'listing').get(pk=order_id)
@@ -486,6 +504,12 @@ def create_review(request, order_id):
         rating=rating,
         comment=comment,
     )
+
+    # Save review images (up to 3)
+    images = request.FILES.getlist('images')
+    for img in images[:3]:
+        ReviewImage.objects.create(review=review, image=img)
+
     create_notification(
         order.seller, 'review_received',
         f'New review from {request.user.username}',
@@ -551,6 +575,11 @@ def dispute_list_create(request):
     serializer.is_valid(raise_exception=True)
     dispute = serializer.save(order=order, opened_by=request.user)
 
+    # Freeze escrow release while dispute is active
+    if order.escrow_status == 'held':
+        order.escrow_status = 'disputed'
+        order.save()
+
     # Notify the other party
     other_party = order.seller if request.user == order.buyer else order.buyer
     create_notification(
@@ -604,9 +633,15 @@ def dispute_detail(request, dispute_id):
             payment.status = 'refunded'
             payment.save()
         except Payment.DoesNotExist:
-            pass  # No payment record found
+            pass
         except Exception:
             logger.exception('Stripe refund failed for order %s', order.id)
+        order.escrow_status = 'refunded'
+        order.save()
+    elif new_status in ('resolved_no_refund', 'closed'):
+        if order.escrow_status in ('held', 'disputed'):
+            order.escrow_status = 'released'
+            order.save()
 
     # Notify both parties on resolution
     if new_status in ('resolved_refund', 'resolved_no_refund', 'closed'):

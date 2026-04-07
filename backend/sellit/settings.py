@@ -102,6 +102,16 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '60/minute',
+        'user': '120/minute',
+        'auth': '5/minute',
+        'listing_create': '10/hour',
+    },
 }
 
 # JWT Settings
@@ -149,3 +159,14 @@ if CLOUDINARY_STORAGE['CLOUD_NAME']:
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Escrow — number of days after delivery before funds are auto-released
+PURCHASE_PROTECTION_DAYS = 7
+
+# Content moderation
+REPORT_AUTO_HIDE_THRESHOLD = 3  # Auto-hide listing after this many reports
+SUSPICIOUS_PRICE_THRESHOLD = 1  # Flag listings priced below this (CAD)
+BANNED_KEYWORDS = [
+    'counterfeit', 'replica', 'fake designer', 'knockoff',
+    'stolen', 'drugs', 'weapons', 'illegal',
+]

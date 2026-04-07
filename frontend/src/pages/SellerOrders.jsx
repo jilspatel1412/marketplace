@@ -54,6 +54,32 @@ function ShipModal({ order, onClose, onShipped }) {
   )
 }
 
+const STATUS_COLOR = {
+  pending_payment: 'var(--yellow)',
+  paid: 'var(--green)',
+  shipped: '#3b82f6',
+  delivered: 'var(--green)',
+  cancelled: 'var(--red)',
+}
+
+const ESCROW_COLOR = {
+  pending: 'var(--text3)',
+  held: 'var(--yellow)',
+  released: 'var(--green)',
+  refunded: '#3b82f6',
+  disputed: 'var(--red)',
+}
+
+function formatTimeLeft(expiresAt) {
+  if (!expiresAt) return null
+  const diff = new Date(expiresAt) - new Date()
+  if (diff <= 0) return 'Ready to release'
+  const days = Math.floor(diff / 86400000)
+  const hours = Math.floor((diff % 86400000) / 3600000)
+  if (days > 0) return `${days}d ${hours}h`
+  return `${hours}h`
+}
+
 export default function SellerOrders() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
@@ -62,14 +88,6 @@ export default function SellerOrders() {
 
   const load = () => orderAPI.list().then(res => setOrders(res.data)).finally(() => setLoading(false))
   useEffect(() => { load() }, [])
-
-  const STATUS_COLOR = {
-    pending_payment: 'var(--yellow)',
-    paid: 'var(--green)',
-    shipped: '#3b82f6',
-    delivered: 'var(--green)',
-    cancelled: 'var(--red)',
-  }
 
   return (
     <div className="page">
@@ -97,7 +115,7 @@ export default function SellerOrders() {
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>#</th><th>Item</th><th>Buyer</th><th>Amount</th><th>Status</th><th>Tracking</th><th>Date</th><th></th></tr>
+                  <tr><th>#</th><th>Item</th><th>Buyer</th><th>Amount</th><th>Status</th><th>Escrow</th><th>Tracking</th><th>Date</th><th></th></tr>
                 </thead>
                 <tbody>
                   {orders.map(o => (
@@ -110,6 +128,22 @@ export default function SellerOrders() {
                         <span style={{ color: STATUS_COLOR[o.status] || 'var(--text2)', fontWeight: 600, fontSize: '0.85rem', textTransform: 'capitalize' }}>
                           {o.status.replace('_', ' ')}
                         </span>
+                      </td>
+                      <td style={{ fontSize: '0.78rem' }}>
+                        {o.escrow_status && o.escrow_status !== 'pending' ? (
+                          <div>
+                            <span style={{ color: ESCROW_COLOR[o.escrow_status], fontWeight: 600, textTransform: 'capitalize' }}>
+                              {o.escrow_status_display || o.escrow_status}
+                            </span>
+                            {o.escrow_status === 'held' && o.protection_expires_at && (
+                              <div style={{ color: 'var(--text3)', marginTop: 2 }}>
+                                {formatTimeLeft(o.protection_expires_at)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text3)' }}>—</span>
+                        )}
                       </td>
                       <td style={{ fontSize: '0.82rem', color: o.tracking_number ? 'var(--text)' : 'var(--text3)' }}>
                         {o.tracking_number || '—'}
