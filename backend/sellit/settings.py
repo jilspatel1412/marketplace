@@ -126,8 +126,15 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS — allow all origins (app uses JWT headers, not cookies)
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS — only allow our frontend origins
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:5173,https://marketplace-seven-mu.vercel.app,https://sell-rhjljepol-jilspatel1412s-projects.vercel.app'
+).split(',')
+CORS_ALLOW_HEADERS = [
+    'accept', 'authorization', 'content-type', 'origin',
+    'x-requested-with',
+]
 
 # Stripe
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
