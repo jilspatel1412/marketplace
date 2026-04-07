@@ -76,6 +76,10 @@ def _settle_auction(listing, top_bid):
                 import logging
                 logging.getLogger(__name__).exception('Stripe PaymentIntent failed for auction order %s', order.id)
 
+        from notifications.emails import auction_won as auction_won_html
+        from notifications.emails import auction_ended_seller as auction_ended_html
+        from django.conf import settings as django_settings
+        frontend_url = getattr(django_settings, 'FRONTEND_URL', 'http://localhost:5173')
         send_email(
             recipient=top_bid.bidder.email,
             subject=f'You won the auction for "{listing.title}"!',
@@ -83,7 +87,8 @@ def _settle_auction(listing, top_bid):
                 f'Hi {top_bid.bidder.username},\n\n'
                 f'The auction for "{listing.title}" has ended and you won with a bid of ${top_bid.amount}!\n\n'
                 f'Please log in to complete your payment.\n\nSellIt Team'
-            )
+            ),
+            html=auction_won_html(top_bid.bidder.username, listing.title, top_bid.amount, frontend_url),
         )
         send_email(
             recipient=listing.seller.email,
@@ -93,7 +98,8 @@ def _settle_auction(listing, top_bid):
                 f'Your auction for "{listing.title}" has ended. '
                 f'{top_bid.bidder.username} won with a bid of ${top_bid.amount}.\n\n'
                 f'SellIt Team'
-            )
+            ),
+            html=auction_ended_html(listing.seller.username, listing.title, top_bid.bidder.username, top_bid.amount, frontend_url),
         )
 
         create_notification(
