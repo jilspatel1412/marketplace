@@ -63,35 +63,13 @@ User = get_user_model()
 
 
 def _send_verification_email(user):
+    from notifications.emails import verify_email as verify_email_html
     verify_url = f"{settings.FRONTEND_URL}/verify-email?token={user.verification_token}"
     send_email(
         recipient=user.email,
         subject='Verify your SellIt account',
         body=f'Hi {user.username},\n\nVerify your email by visiting:\n{verify_url}\n\nSellIt Team',
-        html=f'''
-<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;border:1px solid #eee;border-radius:8px;overflow:hidden">
-  <div style="background:#e03d00;padding:24px;text-align:center">
-    <span style="color:#fff;font-size:26px;font-weight:800;letter-spacing:-1px">SellIt</span>
-  </div>
-  <div style="padding:32px">
-    <h2 style="margin:0 0 12px;color:#0c0c0e">Verify your email</h2>
-    <p style="color:#555;line-height:1.6;margin:0 0 28px">
-      Hi <strong>{user.username}</strong>,<br>
-      Click the button below to verify your email address and activate your account.
-    </p>
-    <div style="text-align:center;margin-bottom:28px">
-      <a href="{verify_url}"
-         style="background:#e03d00;color:#fff;padding:14px 36px;border-radius:8px;
-                text-decoration:none;font-weight:700;font-size:16px;display:inline-block">
-        Verify Email Address
-      </a>
-    </div>
-    <p style="color:#999;font-size:12px;margin:0">
-      Button not working? Copy and paste this link into your browser:<br>
-      <a href="{verify_url}" style="color:#e03d00;word-break:break-all">{verify_url}</a>
-    </p>
-  </div>
-</div>'''
+        html=verify_email_html(user.username, verify_url),
     )
 
 
@@ -191,11 +169,13 @@ def password_reset_request(request):
         user.password_reset_token = uuid.uuid4()
         user.password_reset_requested_at = timezone.now()
         user.save()
+        from notifications.emails import password_reset as password_reset_html
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={user.password_reset_token}"
         send_email(
             recipient=user.email,
             subject='Reset your SellIt password',
-            body=f'Hi {user.username},\n\nClick to reset your password:\n{reset_url}\n\nThis link is valid for 24 hours.\n\nThanks,\nSellIt Team'
+            body=f'Hi {user.username},\n\nClick to reset your password:\n{reset_url}\n\nThis link is valid for 24 hours.\n\nThanks,\nSellIt Team',
+            html=password_reset_html(user.username, reset_url),
         )
     except User.DoesNotExist:
         pass  # Don't reveal if email exists

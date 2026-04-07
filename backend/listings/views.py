@@ -337,10 +337,13 @@ def offer_list_create(request, pk):
 
     # Notify seller (don't let notification failure block the offer)
     try:
+        from notifications.emails import new_offer as new_offer_html
+        frontend_url = getattr(django_settings, 'FRONTEND_URL', 'http://localhost:5173')
         send_email(
             recipient=listing.seller.email,
             subject=f'New offer on "{listing.title}"',
-            body=f'Hi {listing.seller.username},\n\n{request.user.username} submitted an offer of ${offer.offer_price} on your listing "{listing.title}".\n\nLog in to review it.\n\nSellIt Team'
+            body=f'Hi {listing.seller.username},\n\n{request.user.username} submitted an offer of ${offer.offer_price} on your listing "{listing.title}".\n\nLog in to review it.\n\nSellIt Team',
+            html=new_offer_html(listing.seller.username, request.user.username, listing.title, offer.offer_price, frontend_url),
         )
         create_notification(
             listing.seller, 'offer_received',
@@ -423,10 +426,13 @@ def offer_update(request, offer_id):
                     logger.exception('Stripe PaymentIntent failed for offer order %s', order.id)
 
             # Notify buyer
+            from notifications.emails import offer_accepted as offer_accepted_html
+            frontend_url = getattr(django_settings, 'FRONTEND_URL', 'http://localhost:5173')
             send_email(
                 recipient=offer.buyer.email,
                 subject=f'Your offer on "{listing.title}" was accepted!',
-                body=f'Hi {offer.buyer.username},\n\nYour offer of ${offer.offer_price} on "{listing.title}" was accepted!\n\nProceed to payment to complete your purchase.\n\nSellIt Team'
+                body=f'Hi {offer.buyer.username},\n\nYour offer of ${offer.offer_price} on "{listing.title}" was accepted!\n\nProceed to payment to complete your purchase.\n\nSellIt Team',
+                html=offer_accepted_html(offer.buyer.username, listing.title, offer.offer_price, frontend_url),
             )
             create_notification(
                 offer.buyer, 'offer_accepted',
@@ -442,10 +448,13 @@ def offer_update(request, offer_id):
             return Response(response_data)
 
     # Rejected
+    from notifications.emails import offer_rejected as offer_rejected_html
+    frontend_url = getattr(django_settings, 'FRONTEND_URL', 'http://localhost:5173')
     send_email(
         recipient=offer.buyer.email,
         subject=f'Your offer on "{listing.title}" was declined',
-        body=f'Hi {offer.buyer.username},\n\nUnfortunately your offer of ${offer.offer_price} on "{listing.title}" was declined.\n\nSellIt Team'
+        body=f'Hi {offer.buyer.username},\n\nUnfortunately your offer of ${offer.offer_price} on "{listing.title}" was declined.\n\nSellIt Team',
+        html=offer_rejected_html(offer.buyer.username, listing.title, offer.offer_price, listing.id, frontend_url),
     )
     create_notification(
         offer.buyer, 'offer_rejected',
@@ -583,6 +592,8 @@ def contact_seller(request, pk):
     if not message:
         return Response({'error': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    from notifications.emails import listing_inquiry as listing_inquiry_html
+    frontend_url = getattr(django_settings, 'FRONTEND_URL', 'http://localhost:5173')
     send_email(
         recipient=listing.seller.email,
         subject=f'Message about your listing "{listing.title}"',
@@ -590,7 +601,8 @@ def contact_seller(request, pk):
             f'Hi {listing.seller.username},\n\n'
             f'{request.user.username} sent you a message about your listing "{listing.title}":\n\n'
             f'{message}\n\nSellIt Team'
-        )
+        ),
+        html=listing_inquiry_html(listing.seller.username, request.user.username, listing.title, message, frontend_url),
     )
     return Response({'status': 'Message sent.'})
 
@@ -732,6 +744,8 @@ def accept_auction_bid(request, pk):
                 logger.exception('Stripe PaymentIntent failed for auction order %s', order.id)
 
         # Notify winner
+        from notifications.emails import auction_won as auction_won_html
+        frontend_url = getattr(django_settings, 'FRONTEND_URL', 'http://localhost:5173')
         send_email(
             recipient=top_bid.bidder.email,
             subject=f'You won the auction for "{listing.title}"!',
@@ -740,7 +754,8 @@ def accept_auction_bid(request, pk):
                 f'Congratulations! The seller accepted your bid of ${top_bid.amount} '
                 f'for "{listing.title}".\n\n'
                 f'Please complete your payment to confirm the purchase.\n\nSellIt Team'
-            )
+            ),
+            html=auction_won_html(top_bid.bidder.username, listing.title, top_bid.amount, frontend_url),
         )
 
     return Response({

@@ -168,6 +168,8 @@ def stripe_webhook(request):
             )
 
             # Send confirmation emails
+            from notifications.emails import order_confirmed_buyer, order_confirmed_seller
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
             send_email(
                 recipient=order.buyer.email,
                 subject=f'Order Confirmed — {order.listing.title}',
@@ -175,9 +177,12 @@ def stripe_webhook(request):
                     f'Hi {order.buyer.username},\n\n'
                     f'Your payment of ${order.total_amount} for "{order.listing.title}" was successful!\n\n'
                     f'Order #{order.id} is now confirmed.\n\n'
-                    f'Receipt issued at: {receipt.issued_at}\n\n'
                     f'Thank you for shopping on SellIt!\n\nSellIt Team'
-                )
+                ),
+                html=order_confirmed_buyer(
+                    order.buyer.username, order.listing.title,
+                    order.total_amount, order.id, frontend_url,
+                ),
             )
             buyer = order.buyer
             buyer_addr_parts = [
@@ -185,8 +190,6 @@ def stripe_webhook(request):
                 buyer.state_province, buyer.postal_code, buyer.country
             ]
             buyer_addr = ', '.join(p for p in buyer_addr_parts if p and p.strip()) or 'No address on file'
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
-            label_url = f'{frontend_url}/buyer/orders/{order.id}/label'
             send_email(
                 recipient=order.seller.email,
                 subject=f'New sale — {order.listing.title}',
@@ -195,9 +198,12 @@ def stripe_webhook(request):
                     f'{buyer.username} has paid for "{order.listing.title}".\n\n'
                     f'Amount: ${order.total_amount} | Order #{order.id}\n\n'
                     f'SHIP TO:\n{buyer.username}\n{buyer_addr}\n\n'
-                    f'Download your shipping label: {label_url}\n\n'
                     f'SellIt Team'
-                )
+                ),
+                html=order_confirmed_seller(
+                    order.seller.username, buyer.username, order.listing.title,
+                    order.total_amount, order.id, buyer_addr, frontend_url,
+                ),
             )
         except Payment.DoesNotExist:
             pass
@@ -423,6 +429,8 @@ def update_order_status(request, order_id):
             f'Your order is on the way.' + (f' Tracking: {tracking_number}' if tracking_number else ''),
             '/buyer/orders'
         )
+        from notifications.emails import order_shipped as order_shipped_html
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
         send_email(
             recipient=order.buyer.email,
             subject=f'Your order has shipped — {order.listing.title}',
@@ -431,7 +439,11 @@ def update_order_status(request, order_id):
                 f'Your order for "{order.listing.title}" has been shipped!\n\n'
                 + (f'Tracking number: {tracking_number}\n\n' if tracking_number else '')
                 + 'SellIt Team'
-            )
+            ),
+            html=order_shipped_html(
+                order.buyer.username, order.listing.title,
+                tracking_number, frontend_url, order.id,
+            ),
         )
 
     # Buyer can mark as delivered
